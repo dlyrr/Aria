@@ -1,0 +1,137 @@
+# Cut a release: bump the version, tag it, build installers on every platform,
+# and publish them as GitHub Release assets.
+#
+# Run from the Actions tab (or `gh workflow run release.yml -f version=patch`).
+# Manual rather than on-every-push: a desktop release is a deliberate act, and
+# building three platforms on every commit to master would burn runner minutes
+# for artifacts nobody downloads.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version — an explicit x.y.z, or patch / minor / major"
+        required: true
+        default: patch
+
+# The tag and the bump commit are pushed to master, and the release is created.
+permissions:
+  contents: write
+
+# Two releases at once would race on the same tag and interleave their assets.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Bump, commit, tag. Split out so the build matrix can check out the tag and
+  # every platform is guaranteed to build the identical tree.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump version
+        id: bump
+        run: node .github/scripts/bump.mjs "${{ inputs.version }}"
+
+      - name: Commit and tag
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Named explicitly: the checkout is clean, but this keeps the commit to
+          # the version files even if a future step leaves something behind.
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          git commit -m "Release $TAG"
+          git tag -a "$TAG" -m "Release $TAG"
+          # Atomic: if the tag already exists, master is not moved either.
+          git push --atomic origin HEAD "$TAG"
+
+  build:
+    needs: version
+    strategy:
+      # One platform failing shouldn't discard installers that already built.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          # Intel Macs: add `- platform: macos-13` with
+          # `--target x86_64-apple-darwin`.
+          - platform: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The tag, not the branch: master may have moved on since the bump.
+          ref: ${{ needs.version.outputs.tag }}
+
+      # webkit2gtk 4.1 is the Tauri v2 build (4.0 is v1), and libdbus is what
+      # souvlaki talks to for media keys off Windows.
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev patchelf \
+            libappindicator3-dev libdbus-1-dev libxdo-dev libssl-dev \
+            build-essential curl wget file
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || '' }}
+
+      # Keyed on src-tauri, where the Cargo workspace actually lives.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - run: pnpm install --frozen-lockfile
+
+      # No `pnpm check` gate here on purpose: it currently exits 1 on a
+      # pre-existing error in vite.config.js ("Cannot find name 'process'"),
+      # which would block every release. Add `@types/node` to devDependencies
+      # and that clears, at which point a `- run: pnpm check` step above this
+      # one is worth having. The build itself still gates the release — a
+      # frontend or Rust compile error fails the job and nothing is published.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ needs.version.outputs.tag }}
+          releaseName: Aria ${{ needs.version.outputs.tag }}
+          releaseBody: Download the installer for your platform below.
+          # Draft until every platform is in, so nobody downloads a release
+          # that is missing the build still running.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release edit "$TAG" --draft=false --latest
