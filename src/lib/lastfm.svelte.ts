@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { TrackMeta } from "./player.svelte";
+import { library } from "./library.svelte";
+import { primaryArtist } from "./artists";
 
 interface LastFmView {
   api_key: string;
@@ -18,12 +20,24 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Last.fm wants one artist per scrobble, and it matches on the string: a
+ * "slayr & prettifun" credit scrobbles as an act of that name rather than
+ * against either person's page, which quietly splits a listener's history in
+ * two. So only the lead credit is sent — the same name "Go to Artist" opens.
+ * `atomicArtists` keeps acts whose own name holds a separator ("Earth, Wind &
+ * Fire") whole.
+ */
+function scrobbleArtist(artist: string): string {
+  return primaryArtist(artist, library.atomicArtists);
+}
+
 function trackPayload(track: TrackMeta) {
   return {
     title: track.title,
-    artist: track.artist,
+    artist: scrobbleArtist(track.artist),
     album: track.album,
-    album_artist: track.album_artist,
+    album_artist: track.album_artist ? scrobbleArtist(track.album_artist) : "",
     track_number: track.track_number,
     duration: track.duration,
   };
