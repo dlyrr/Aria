@@ -24,7 +24,11 @@
       | "check"
       | "chevron"
       | "close"
-      | "immersive";
+      | "immersive"
+      | "gauge"
+      | "history"
+      | "clock"
+      | "star";
     size?: number;
   } = $props();
 </script>
@@ -82,9 +86,26 @@
     <rect x="3" y="4" width="18" height="16" rx="3" />
     <line x1="9" y1="4" x2="9" y2="20" />
   {:else if name === "browser"}
-    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <!-- A window with a magnifier in its corner: the library, searchable. -->
+    <path d="M13 19H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5" />
     <line x1="3" y1="9.5" x2="21" y2="9.5" />
-    <circle cx="6.3" cy="7.2" r="0.6" fill="currentColor" stroke="none" />
+    <circle cx="16.5" cy="16.5" r="3" />
+    <path d="m18.8 18.8 2.4 2.4" />
+  {:else if name === "gauge"}
+    <!-- Speedometer: a dial with the needle past twelve. -->
+    <path d="M4.5 17.5a8.5 8.5 0 1 1 15 0" />
+    <path d="m12 14 3.4-4.4" />
+    <circle cx="12" cy="14" r="1.2" fill="currentColor" stroke="none" />
+    <path d="M6.5 13.5h.01M17.5 13.5h.01M8 9.5h.01M12 8h.01" stroke-width="2.4" />
+  {:else if name === "history"}
+    <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+    <path d="M3.5 3.5V8h4.5" />
+    <path d="M12 8v4.5l3 1.8" />
+  {:else if name === "clock"}
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 1.8" />
+  {:else if name === "star"}
+    <path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.9l-5.3 2.8 1.1-5.9-4.3-4.1 5.9-.8Z" />
   {:else if name === "collapse"}
     <!-- The inverse of "exit": four arrows pulled in toward the middle. -->
     <path d="M9 3v6H3M21 9h-6V3M3 15h6v6M15 21v-6h6" />

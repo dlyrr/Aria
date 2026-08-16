@@ -364,7 +364,7 @@
     display: flex;
     flex-direction: column;
     gap: 1px;
-    border-radius: 12px;
+    border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03) 55%),
@@ -390,8 +390,8 @@
     align-items: center;
     gap: 9px;
     width: 100%;
-    padding: 8px 10px;
-    border-radius: 7px;
+    padding: 8px 12px;
+    border-radius: 10px;
     font-size: 13px;
     font-weight: 600;
     text-align: left;
@@ -427,8 +427,8 @@
     transform: translate(-50%, -50%);
     width: 460px;
     max-width: calc(100vw - 24px);
-    padding: 14px 16px 14px;
-    border-radius: 16px;
+    padding: 16px 18px 16px;
+    border-radius: 22px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.06)),
@@ -537,8 +537,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 8px 5px 11px;
-    border-radius: 8px;
+    padding: 5px 9px 5px 12px;
+    border-radius: 999px;
     font-size: 12.5px;
     font-weight: 650;
     color: #fff;
@@ -563,10 +563,10 @@
     top: calc(100% + 5px);
     right: 0;
     min-width: 118px;
-    padding: 4px;
+    padding: 5px;
     display: flex;
     flex-direction: column;
-    border-radius: 10px;
+    border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.18);
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 60%),
@@ -581,7 +581,7 @@
     align-items: center;
     gap: 7px;
     padding: 7px 10px 7px 6px;
-    border-radius: 7px;
+    border-radius: 9px;
     font-size: 12.5px;
     font-weight: 650;
     color: rgba(255, 255, 255, 0.86);
@@ -632,8 +632,8 @@
     gap: 8px;
     width: 100%;
     margin-top: 10px;
-    padding: 9px;
-    border-radius: 9px;
+    padding: 10px;
+    border-radius: 999px;
     font-size: 12.5px;
     font-weight: 650;
     color: rgba(255, 255, 255, 0.9);

@@ -50,8 +50,8 @@
 
 <style>
   .compact-lyrics {
-    padding: 14px 26px 13px;
-    border-radius: 18px;
+    padding: 14px 28px 13px;
+    border-radius: 24px;
     border: 1px solid var(--sol-hairline, rgba(255, 255, 255, 0.24));
     /* Same glass as the rest of Solarium — see `.solarium` for the recipe. */
     background: var(--sol-glass, rgba(255, 255, 255, 0.1));

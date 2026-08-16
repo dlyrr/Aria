@@ -12,10 +12,12 @@
   import { ui } from "$lib/ui.svelte";
   import { theme } from "$lib/theme.svelte";
   import { immersiveStyle, aspectValue } from "$lib/immersiveStyle.svelte";
+  import { library } from "$lib/library.svelte";
   import { glass } from "$lib/liquidGlass";
   import ArtistLink from "$lib/ArtistLink.svelte";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import CompactLyrics from "$lib/CompactLyrics.svelte";
+  import SolariumQueue from "$lib/SolariumQueue.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
   import WindowControls from "$lib/WindowControls.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
@@ -36,11 +38,17 @@
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let lastWake = 0;
   let volumeOpen = $state(false);
+  let speedOpen = $state(false);
 
   const pos = $derived(seeking ? seekValue : player.position);
   const progress = $derived(player.duration > 0 ? (pos / player.duration) * 100 : 0);
   const volPct = $derived(player.volume * 100);
-  const upcoming = $derived(player.queue.slice(Math.max(0, player.currentIndex + 1)));
+  const starred = $derived(!!player.current && library.isPinned("song", player.current.path));
+
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  /** `1.5` → "1.5×", `1` → "1×", `0.75` → "0.75×". */
+  const speedText = (s: number) => `${parseFloat(s.toFixed(2))}×`;
+  const speedLabel = $derived(speedText(player.speed));
 
   const art = $derived(player.current?.art ?? null);
 
@@ -59,10 +67,13 @@
   const ratio = $derived(aspectValue(immersiveStyle.aspect));
   // The frame is the target ratio at the full height of the window: a 4:3
   // frame in a 16:9 window leaves colour field either side of the art, and a
-  // 32:9 one runs off both edges. Artwork Y Position picks which band of the
-  // cover survives the crop into that frame.
+  // 16:9 one nearly fills it. Wider than the window it stops growing — 21:9
+  // and 32:9 in a 16:9 window are the same picture, one that fills the width
+  // — since past that point more ratio is only more zoom into a crop that's
+  // already off both edges. Artwork Y Position picks which band of the cover
+  // survives the crop into the frame.
   const frameH = $derived(stageH);
-  const frameW = $derived(stageH * ratio);
+  const frameW = $derived(Math.min(stageH * ratio, stageW));
   // Centred on the space the side cards leave, not on the window: the art is
   // painted right across the stage and the cards' glass blurs whatever ends up
   // under them, so the crop can straddle the join without a seam.
@@ -77,12 +88,26 @@
     ].join(";"),
   );
 
+  // The side column holds one card. With the queue on the side, opening one
+  // closes the other; a floating queue can share the screen with the lyrics.
+  function toggleLyrics() {
+    ui.solLyrics = !ui.solLyrics;
+    if (ui.solLyrics && immersiveStyle.queueOnSide) ui.solQueue = false;
+    wake(true);
+  }
+  function toggleQueue() {
+    ui.solQueue = !ui.solQueue;
+    if (ui.solQueue && immersiveStyle.queueOnSide) ui.solLyrics = false;
+    wake(true);
+  }
+
   function scheduleIdle() {
     if (idleTimer) clearTimeout(idleTimer);
     if (seeking) return;
     idleTimer = setTimeout(() => {
       idle = true;
       volumeOpen = false;
+      speedOpen = false;
     }, 3200);
   }
 
@@ -172,7 +197,7 @@
           <section
             class="card lyrics-card"
             aria-label="Lyrics"
-            use:glass={{ blur: 36, saturate: 1.7, brightness: 1.04, bezel: 30, strength: 40 }}
+            use:glass={{ blur: 36, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40 }}
             transition:fade={{ duration: 220 }}
           >
             <LyricsPanel />
@@ -182,10 +207,10 @@
           <section
             class="card queue-card"
             aria-label="Play queue"
-            use:glass={{ blur: 36, saturate: 1.7, brightness: 1.04, bezel: 30, strength: 40 }}
+            use:glass={{ blur: 36, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40 }}
             transition:fade={{ duration: 220 }}
           >
-            {@render queueBody()}
+            <SolariumQueue variant="side" />
           </section>
         {/if}
       </div>
@@ -199,13 +224,16 @@
   {/if}
 
   {#if queueFloat}
+    <!-- Centred on the free part of the stage, like the artwork, so it and a
+         lyric card don't overlap. -->
     <section
       class="card queue-float"
       aria-label="Play queue"
-      use:glass={{ blur: 36, saturate: 1.7, brightness: 1.04, bezel: 26, strength: 36 }}
+      style="left:{freeW / 2}px"
+      use:glass={{ blur: 40, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38 }}
       transition:fade={{ duration: 200 }}
     >
-      {@render queueBody()}
+      <SolariumQueue variant="float" />
     </section>
   {/if}
 
@@ -218,7 +246,7 @@
       class="view-toggle"
       role="group"
       aria-label="Layout"
-      use:glass={{ blur: 22, saturate: 1.7, bezel: 12, strength: 22 }}
+      use:glass={{ blur: 18, saturate: 1.6, bezel: 12, strength: 22 }}
       transition:fade={{ duration: 160 }}
     >
       <button
@@ -238,10 +266,7 @@
         title="Queue"
         aria-label="Queue"
         aria-pressed={ui.solQueue}
-        onclick={() => {
-          ui.solQueue = !ui.solQueue;
-          wake(true);
-        }}
+        onclick={toggleQueue}
       >
         <ImmersiveIcon name="queue" size={17} />
       </button>
@@ -250,10 +275,7 @@
         title="Lyrics"
         aria-label="Lyrics"
         aria-pressed={ui.solLyrics}
-        onclick={() => {
-          ui.solLyrics = !ui.solLyrics;
-          wake(true);
-        }}
+        onclick={toggleLyrics}
       >
         <ImmersiveIcon name="lyrics" size={17} />
       </button>
@@ -261,7 +283,7 @@
 
     <div
       class="transport"
-      use:glass={{ blur: 26, saturate: 1.7, brightness: 0.98, bezel: 16, strength: 26 }}
+      use:glass={{ blur: 18, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26 }}
       transition:fade={{ duration: 180 }}
     >
       <div class="left-cluster">
@@ -311,13 +333,30 @@
           <div class="now-title">{player.current?.title ?? "Not Playing"}</div>
           <div class="now-sub">
             {#if player.current}
-              {player.current.album || "Single"} —
+              {player.current.album || "Single"} –
               <ArtistLink artist={player.current.artist} />
             {:else}
               Nothing queued
             {/if}
           </div>
         </div>
+        {#if player.current}
+          <div class="now-badges">
+            {#if player.speed !== 1}
+              <span class="now-badge" title="Playback speed">{speedLabel}</span>
+            {/if}
+            <button
+              class="now-star"
+              class:on={starred}
+              title={starred ? "Unpin song" : "Pin song"}
+              aria-label={starred ? "Unpin song" : "Pin song"}
+              aria-pressed={starred}
+              onclick={() => player.current && library.togglePin("song", player.current.path)}
+            >
+              <ImmersiveIcon name="star" size={13} />
+            </button>
+          </div>
+        {/if}
         <div class="track" style="--pct:{progress}%">
           <input
             aria-label="Playback position"
@@ -335,7 +374,7 @@
 
       <div class="right-cluster">
         <div
-          class="volume-wrap"
+          class="pop-wrap"
           role="group"
           aria-label="Volume"
           onpointerenter={() => (volumeOpen = true)}
@@ -351,8 +390,8 @@
           </button>
           {#if volumeOpen}
             <div
-              class="volume-pop"
-              use:glass={{ blur: 24, saturate: 1.7, bezel: 12, strength: 20 }}
+              class="pop volume-pop"
+              use:glass={{ blur: 22, saturate: 1.6, bezel: 12, strength: 20 }}
               transition:fade={{ duration: 120 }}
             >
               <div class="track volume" style="--pct:{volPct}%">
@@ -375,7 +414,7 @@
           title="Queue"
           aria-label="Queue"
           aria-pressed={ui.solQueue}
-          onclick={() => (ui.solQueue = !ui.solQueue)}
+          onclick={toggleQueue}
         >
           <ImmersiveIcon name="queue" size={17} />
         </button>
@@ -385,10 +424,73 @@
           title="Lyrics"
           aria-label="Lyrics"
           aria-pressed={ui.solLyrics}
-          onclick={() => (ui.solLyrics = !ui.solLyrics)}
+          onclick={toggleLyrics}
         >
           <ImmersiveIcon name="lyrics" size={17} />
         </button>
+        <button
+          class="ctl secondary"
+          class:on={ui.browserOpen}
+          title="Browser"
+          aria-label="Library browser"
+          aria-pressed={ui.browserOpen}
+          onclick={() => ui.toggleBrowser()}
+        >
+          <ImmersiveIcon name="browser" size={17} />
+        </button>
+        <div
+          class="pop-wrap"
+          role="group"
+          aria-label="Playback speed"
+          onpointerenter={() => (speedOpen = true)}
+          onpointerleave={() => (speedOpen = false)}
+        >
+          <button
+            class="ctl secondary"
+            class:on={player.speed !== 1}
+            title="Playback speed"
+            aria-label="Playback speed"
+            aria-expanded={speedOpen}
+            onclick={() => (speedOpen = !speedOpen)}
+          >
+            <ImmersiveIcon name="gauge" size={17} />
+          </button>
+          {#if speedOpen}
+            <div
+              class="pop speed-pop"
+              use:glass={{ blur: 22, saturate: 1.6, bezel: 14, strength: 22 }}
+              transition:fade={{ duration: 120 }}
+            >
+              <div class="pop-head">
+                <span>Playback Speed</span>
+                <strong>{speedLabel}</strong>
+              </div>
+              <div class="track speed" style="--pct:{((player.speed - 0.5) / 1.5) * 100}%">
+                <input
+                  aria-label="Playback speed"
+                  type="range"
+                  min="0.5"
+                  max="2"
+                  step="0.05"
+                  value={player.speed}
+                  oninput={(e) => player.setSpeed(+(e.target as HTMLInputElement).value)}
+                />
+              </div>
+              <div class="chips">
+                {#each SPEEDS as s (s)}
+                  <button
+                    class="chip"
+                    class:on={player.speed === s}
+                    aria-pressed={player.speed === s}
+                    onclick={() => player.setSpeed(s)}
+                  >
+                    {speedText(s)}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
         <button
           class="ctl secondary"
           title="Exit immersive mode"
@@ -404,7 +506,7 @@
       class="gear"
       title="Appearance"
       aria-label="Appearance"
-      use:glass={{ blur: 22, saturate: 1.7, bezel: 14, strength: 22 }}
+      use:glass={{ blur: 18, saturate: 1.6, bezel: 14, strength: 22 }}
       onclick={() => onappearance()}
       transition:fade={{ duration: 160 }}
     >
@@ -412,42 +514,6 @@
     </button>
   {/if}
 </div>
-
-{#snippet queueBody()}
-  <div class="queue-scroll">
-    <h2>Now Playing</h2>
-    {#if player.current}
-      <button class="now-row" onclick={() => player.playIndex(player.currentIndex)}>
-        <img src={player.current.art ?? ""} alt="" class:empty={!player.current.art} />
-        <span class="queue-meta">
-          <strong>{player.current.title}</strong>
-          <small>{player.current.artist} — {player.current.album}</small>
-        </span>
-      </button>
-    {/if}
-
-    <div class="queue-heading">
-      <h2>Playing Next</h2>
-      <span>{Math.max(0, player.currentIndex + 1)} of {player.queue.length}</span>
-    </div>
-
-    <div class="queue-list">
-      {#each upcoming as track, i (track.path + i)}
-        <button class="queue-row" onclick={() => player.playIndex(player.currentIndex + i + 1)}>
-          <span class="queue-number">{player.currentIndex + i + 2}</span>
-          <img src={track.art ?? ""} alt="" class:empty={!track.art} />
-          <span class="queue-meta">
-            <strong>{track.title}</strong>
-            <small>{track.artist} — {track.album}</small>
-          </span>
-        </button>
-      {/each}
-      {#if !upcoming.length}
-        <p class="queue-empty">Nothing after this one.</p>
-      {/if}
-    </div>
-  </div>
-{/snippet}
 
 <style>
   .solarium {
@@ -459,19 +525,19 @@
        rim. The tint therefore comes from the record, not from a swatch. */
     --sol-glass: linear-gradient(
         165deg,
-        rgba(255, 255, 255, 0.16),
-        rgba(255, 255, 255, 0.05) 45%,
-        rgba(255, 255, 255, 0.09)
+        rgba(255, 255, 255, 0.11),
+        rgba(255, 255, 255, 0.02) 45%,
+        rgba(255, 255, 255, 0.05)
       );
     /* Slightly smoked, for menus that need to hold small type. */
     --sol-glass-strong: linear-gradient(
         165deg,
-        rgba(255, 255, 255, 0.14),
-        rgba(255, 255, 255, 0.04) 50%,
-        rgba(255, 255, 255, 0.07)
+        rgba(255, 255, 255, 0.1),
+        rgba(255, 255, 255, 0.02) 50%,
+        rgba(255, 255, 255, 0.04)
       ),
-      rgba(16, 8, 14, 0.28);
-    --sol-hairline: rgba(255, 255, 255, 0.24);
+      rgba(16, 8, 14, 0.24);
+    --sol-hairline: rgba(255, 255, 255, 0.22);
     /* The bright lip along the top-left edge and the shadow under the bottom
        one — the two highlights that make a slab of glass read as having a
        thickness. */
@@ -533,33 +599,34 @@
   }
   /* The mask is the whole idea: no border, no shadow, no frame — the cover just
      stops being a picture somewhere near the edge of the screen. */
-  /* The frame is as tall as the window, so the fade is mostly sideways: the
-     top and bottom run to the screen edge nearly solid, the sides dissolve
-     into the field over the outer third. A wide ellipse rather than a round
-     one, or the corners of a 4:3 frame would go before its sides did. */
+  /* A soft ellipse a little taller than it is wide, in the frame's own
+     proportions: on a square frame the corners are gone and the sides half
+     go, while the top of the picture reaches the top of the screen; on a
+     wide frame the sides dissolve over the outer quarter and the top and
+     bottom hold nearly solid. */
   .art-frame[data-mask="radial"] {
     -webkit-mask-image: radial-gradient(
-      ellipse 58% 92% at 50% 50%,
-      #000 52%,
-      rgba(0, 0, 0, 0.62) 76%,
+      ellipse 58% 72% at 50% 50%,
+      #000 40%,
+      rgba(0, 0, 0, 0.55) 72%,
       transparent 100%
     );
     mask-image: radial-gradient(
-      ellipse 58% 92% at 50% 50%,
-      #000 52%,
-      rgba(0, 0, 0, 0.62) 76%,
+      ellipse 58% 72% at 50% 50%,
+      #000 40%,
+      rgba(0, 0, 0, 0.55) 72%,
       transparent 100%
     );
   }
-  /* Two straight fades intersected: a soft-edged rectangle rather than an
-     ellipse, which keeps a wide crop reading as a wide crop. */
+  /* Two straight fades intersected: the whole picture, softened only along
+     its left and right edges, so a square frame reads as a square. */
   .art-frame[data-mask="linear"] {
     -webkit-mask-image:
-      linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%),
-      linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+      linear-gradient(to right, transparent 0%, #000 11%, #000 89%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
     mask-image:
-      linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%),
-      linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
+      linear-gradient(to right, transparent 0%, #000 11%, #000 89%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
   }
@@ -587,27 +654,33 @@
        track instead of against the content it is meant to be scrolling. */
     display: grid;
     grid-template-rows: minmax(0, 1fr);
-    border-radius: 28px;
+    border-radius: 30px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
     /* Baseline frosting; `use:glass` replaces this inline with the same blur
        plus the refracting rim, and if it can't, this is what you get. */
-    backdrop-filter: blur(36px) saturate(1.7) brightness(1.04);
+    backdrop-filter: blur(36px) saturate(1.7) brightness(0.98);
     box-shadow:
       var(--sol-rim),
       0 30px 80px rgba(10, 3, 8, 0.28);
     overflow: hidden;
   }
-  .queue-card {
-    flex: 0 0 clamp(260px, 24vw, 340px);
+  /* The queue's glass is smoked where the lyric card's is clear: it holds
+     rows of small type, and the record shows through them otherwise. */
+  .queue-card,
+  .queue-float {
+    background:
+      var(--sol-glass),
+      rgba(20, 8, 16, 0.22);
   }
   .queue-float {
     position: absolute;
     z-index: 4;
-    right: 28px;
+    top: 13vh;
     bottom: 118px;
-    width: clamp(280px, 26vw, 360px);
-    height: min(58vh, 560px);
+    transform: translateX(-50%);
+    width: min(560px, 90vw);
+    backdrop-filter: blur(40px) saturate(1.7) brightness(0.9);
   }
 
   .lyrics-card :global(.lyrics) {
@@ -682,10 +755,10 @@
     align-items: center;
     gap: 2px;
     padding: 4px;
-    border-radius: 12px;
+    border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(22px) saturate(1.7);
+    backdrop-filter: blur(18px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 12px 34px rgba(12, 4, 10, 0.24);
@@ -693,7 +766,7 @@
   .view-toggle button {
     width: 38px;
     height: 30px;
-    border-radius: 9px;
+    border-radius: 999px;
     display: grid;
     place-items: center;
     color: rgba(255, 255, 255, 0.76);
@@ -719,11 +792,12 @@
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 16px;
-    padding: 8px 14px;
-    border-radius: 17px;
+    padding: 8px 16px;
+    /* Near enough a pill: the bar is ~54px tall. */
+    border-radius: 26px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(26px) saturate(1.7) brightness(0.98);
+    backdrop-filter: blur(18px) saturate(1.6) brightness(1.02);
     box-shadow:
       var(--sol-rim),
       0 20px 54px rgba(12, 4, 10, 0.3);
@@ -784,21 +858,25 @@
 
   .now-card {
     position: relative;
-    width: clamp(280px, 34vw, 470px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: clamp(300px, 34vw, 480px);
     min-width: 0;
-    padding: 6px 14px 9px;
-    border-radius: 11px;
+    padding: 6px 12px 9px 16px;
+    border-radius: 14px;
     overflow: hidden;
     /* The one dark thing on the pill: the record sits *in* the glass, so it's
        cut deeper than the surface around it. */
-    background: rgba(10, 4, 9, 0.3);
+    background: rgba(10, 4, 9, 0.28);
     box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.28),
+      inset 0 1px 2px rgba(0, 0, 0, 0.26),
       inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   }
   .now-meta {
+    flex: 1;
     min-width: 0;
-    text-align: center;
+    text-align: left;
   }
   .now-title {
     font-size: 12.5px;
@@ -813,6 +891,41 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .now-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+  }
+  .now-badge {
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .now-star {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: rgba(255, 255, 255, 0.72);
+    transition: color 140ms ease, background 140ms ease, transform 200ms var(--motion-spring);
+  }
+  .now-star:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    transform: scale(1.1);
+  }
+  .now-star.on {
+    color: #fff;
+  }
+  .now-star.on :global(svg) {
+    fill: currentColor;
   }
   /* The scrubber is the bottom edge of the card, full bleed: the only line in
      the bar, so it can't be mistaken for anything else. */
@@ -863,23 +976,79 @@
     opacity: 1;
   }
 
-  .volume-wrap {
+  /* Popovers off the transport: volume, playback speed. */
+  .pop-wrap {
     position: relative;
   }
-  .volume-pop {
+  .pop {
     position: absolute;
-    bottom: calc(100% + 10px);
+    bottom: calc(100% + 12px);
     left: 50%;
     transform: translateX(-50%);
-    width: 130px;
     padding: 12px 14px;
-    border-radius: 12px;
+    border-radius: 18px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass-strong);
-    backdrop-filter: blur(24px) saturate(1.7);
+    backdrop-filter: blur(22px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 16px 40px rgba(10, 3, 8, 0.34);
+  }
+  /* Keeps the pointer inside the group on the way up to the popover. */
+  .pop::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: 14px;
+  }
+  .volume-pop {
+    width: 130px;
+  }
+  .speed-pop {
+    width: 236px;
+    padding: 12px 14px 12px;
+  }
+  .pop-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 12px;
+    font-weight: 650;
+    color: rgba(255, 255, 255, 0.78);
+  }
+  .pop-head strong {
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .chips {
+    display: flex;
+    gap: 4px;
+    margin-top: 12px;
+  }
+  .chip {
+    flex: 1;
+    height: 26px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.78);
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .chip:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .chip.on {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
   .gear {
@@ -895,7 +1064,7 @@
     color: rgba(255, 255, 255, 0.85);
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(22px) saturate(1.7);
+    backdrop-filter: blur(18px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 14px 36px rgba(12, 4, 10, 0.26);
@@ -910,103 +1079,6 @@
     transform: rotate(45deg);
   }
 
-  /* `.card` is a grid with one track; the scroller fills it. */
-  .queue-scroll {
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-    padding: 18px 14px 24px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-  }
-  .queue-scroll h2 {
-    font-size: 15px;
-    font-weight: 740;
-    margin: 0 0 8px 6px;
-  }
-  .queue-heading {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin: 22px 6px 6px;
-  }
-  .queue-heading h2 {
-    margin: 0;
-  }
-  .queue-heading span {
-    font-size: 12px;
-    color: var(--sol-muted);
-  }
-  .now-row,
-  .queue-row {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 7px 6px;
-    color: #fff;
-    text-align: left;
-    border-radius: 9px;
-    transition: background 150ms ease, transform 220ms var(--motion-spring);
-  }
-  .now-row {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  .now-row:hover,
-  .queue-row:hover {
-    background: rgba(255, 255, 255, 0.16);
-    transform: translateX(2px);
-  }
-  .queue-row {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0;
-  }
-  .now-row img,
-  .queue-row img {
-    width: 38px;
-    height: 38px;
-    flex: none;
-    object-fit: cover;
-    border-radius: 5px;
-    background: rgba(255, 255, 255, 0.1);
-  }
-  img.empty {
-    visibility: hidden;
-  }
-  .queue-meta {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .queue-meta strong {
-    font-size: 12.5px;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .queue-meta small {
-    font-size: 11.5px;
-    color: var(--sol-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .queue-number {
-    width: 20px;
-    flex: none;
-    text-align: right;
-    font-size: 12px;
-    color: var(--sol-muted);
-    font-variant-numeric: tabular-nums;
-  }
-  .queue-empty {
-    margin: 14px 6px;
-    font-size: 12.5px;
-    color: var(--sol-muted);
-  }
-
   button:focus-visible,
   input:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.96);
@@ -1018,9 +1090,6 @@
       width: max(320px, 52%);
       padding: 54px 18px 112px;
       flex-direction: column;
-    }
-    .queue-card {
-      flex: 1 1 40%;
     }
     .transport {
       width: min(96vw, 1080px);
@@ -1052,8 +1121,8 @@
     .compact-slot,
     .ctl,
     .gear,
-    .now-row,
-    .queue-row {
+    .now-star,
+    .chip {
       transition: none;
     }
     .gear:hover {

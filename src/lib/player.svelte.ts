@@ -96,6 +96,12 @@ class Player {
   shuffled = $state(false);
   /** Keep playing past the end of the queue by pulling similar library tracks. */
   autoplay = $state(false);
+  /**
+   * Playback rate, 1 = normal. Only the WebView2 backend can change tempo
+   * without changing pitch (rodio's speed control resamples, which chipmunks
+   * the track), so anything not at 1× plays through the web element.
+   */
+  speed = $state(1);
 
   private initialized = false;
 
@@ -440,7 +446,7 @@ class Player {
     this.position = 0;
     this.duration = track.duration;
 
-    if (needsWebBackend(track.path) || this.forceWeb.has(track.path)) {
+    if (needsWebBackend(track.path) || this.forceWeb.has(track.path) || this.speed !== 1) {
       // Hand off to the WebView2 <audio> backend; silence the rodio engine.
       await invoke("stop");
       this.usingWeb = true;
@@ -476,6 +482,9 @@ class Player {
         this.audio.src = convertFileSrc(source);
         this.audio.currentTime = 0;
         this.audio.volume = this.volume;
+        // Loading a new source resets the rate to the default, so both are set.
+        this.audio.defaultPlaybackRate = this.speed;
+        this.audio.playbackRate = this.speed;
         try {
           await this.audio.play();
         } catch (e) {
@@ -659,6 +668,24 @@ class Player {
       await invoke("seek", { position: seconds });
     }
     this.publishPlayback();
+  }
+
+  /** Playback rate; clamped to the range the web element time-stretches well. */
+  setSpeed(rate: number) {
+    const v = Math.max(0.5, Math.min(2, Math.round(rate * 100) / 100));
+    if (v === this.speed) return;
+    this.speed = v;
+    if (this.audio) {
+      this.audio.defaultPlaybackRate = v;
+      this.audio.playbackRate = v;
+    }
+    // A track on the rodio backend moves over to the web element to take the
+    // new rate — the same hand-off as a failed seek, resuming where it was.
+    // `playIndex` reads `speed` to pick the backend, so nothing else to flag.
+    if (v !== 1 && this.loaded && !this.usingWeb && this.current) {
+      this.pendingSeek = this.position;
+      void this.playIndex(this.currentIndex);
+    }
   }
 
   async setVolume(v: number) {
