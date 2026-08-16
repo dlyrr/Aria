@@ -1,6 +1,6 @@
 <script lang="ts">
   import { lyrics, wordProgress } from "$lib/lyrics.svelte";
-  import { asideRuns, asideTextRuns } from "$lib/lyricsAside";
+  import { asideRuns, asideTextRuns, rowTexts } from "$lib/lyricsAside";
   import { alignmentLanes } from "$lib/lyricsLanes";
   import { lyricsStyle, HOLD_BASE_SECONDS } from "$lib/lyricsStyle.svelte";
   import { player } from "$lib/player.svelte";
@@ -142,7 +142,8 @@
                  line on purpose — whitespace between the spans would show up
                  as extra gaps, since word text carries its own spacing. -->
             {#each asideRuns(line.words) as row, r (r)}
-              <span class="line-row" class:aside-row={row.aside}>{#each row.indices as w (w)}<span class="word" style="--wp:{wordProgress(line.words[w], player.position)};--emph:{emph[w] ?? 0}"><span class="word-dim">{line.words[w].text}</span><span class="word-glow" aria-hidden="true"><span class="word-lit">{line.words[w].text}</span></span></span>{/each}</span>
+              {@const rt = rowTexts(row.indices.map((w) => line.words![w].text))}
+              <span class="line-row" class:aside-row={row.aside}>{#each row.indices as w, k (w)}<span class="word" style="--wp:{wordProgress(line.words[w], player.position)};--emph:{emph[w] ?? 0}"><span class="word-dim">{rt[k]}</span><span class="word-glow" aria-hidden="true"><span class="word-lit">{rt[k]}</span></span></span>{/each}</span>
             {/each}
           {:else if line.text}
             <!-- Same row split on unsung lines, so a line doesn't visibly

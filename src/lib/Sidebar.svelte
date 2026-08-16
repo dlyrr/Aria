@@ -6,6 +6,7 @@
   } from "$lib/library.svelte";
   import { player } from "$lib/player.svelte";
   import { layout } from "$lib/layout.svelte";
+  import { streaming } from "$lib/streaming.svelte";
   import Artwork from "$lib/Artwork.svelte";
   import SidebarIcon from "$lib/icons/SidebarIcon.svelte";
 
@@ -110,6 +111,24 @@
         {/if}
       {/each}
     </section>
+
+    <!-- Only appears once a service is switched on in Settings: an empty
+         "Services" heading would advertise something nobody opted into. -->
+    {#if streaming.any}
+      <section>
+        <div class="section-head">Services</div>
+        {#each streaming.active as service (service.id)}
+          <button
+            class="item"
+            class:active={nav.view === "streaming" && nav.param === service.id}
+            onclick={() => nav.go("streaming", service.id)}
+          >
+            <span class="icon"><SidebarIcon name="streaming" size={18} /></span>
+            <span class="label">{service.label}</span>
+          </button>
+        {/each}
+      </section>
+    {/if}
 
     <section>
       <div class="section-head pin-head">

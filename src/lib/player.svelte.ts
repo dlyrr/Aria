@@ -54,11 +54,18 @@ const AUTOPLAY_BATCH = 10;
 function extOf(path: string): string {
   return path.split(".").pop()?.toLowerCase() ?? "";
 }
+
+/** A streaming-service preview rather than a file on disk. Its `path` is the
+ *  preview URL — see `streaming.svelte.ts`. */
+export function isRemote(path: string): boolean {
+  return /^https?:\/\//i.test(path);
+}
+
 function needsWebBackend(path: string): boolean {
   // Use one playback pipeline for every supported format. WebView2 provides
   // reliable local playback + seeking and feeds the real-time analyser without
   // Rodio/Symphonia decoder panics or mid-track backend handoffs.
-  return AUDIO_EXTS.includes(extOf(path));
+  return isRemote(path) || AUDIO_EXTS.includes(extOf(path));
 }
 
 /**
@@ -80,6 +87,9 @@ class Player {
 
   /** True while the user is dragging the seek bar (suppress incoming updates). */
   scrubbing = $state(false);
+
+  /** Why the last service preview refused to play, if one did. */
+  streamError = $state("");
 
   /** off → repeat the whole context (queue/album/playlist) → repeat one. */
   repeat = $state<"off" | "all" | "one">("off");
@@ -435,6 +445,27 @@ class Player {
       await invoke("stop");
       this.usingWeb = true;
       this.loaded = true;
+
+      // A service preview is fetched to the cache first and then played from
+      // there: the element runs a crossOrigin analyser, and a CDN that omits
+      // the CORS header would otherwise fail the load outright.
+      let source: string;
+      if (isRemote(track.path)) {
+        try {
+          source = await invoke<string>("cache_stream", { url: track.path });
+        } catch (e) {
+          console.error("preview fetch failed:", e);
+          this.streamError = e instanceof Error ? e.message : String(e);
+          await this.next();
+          return;
+        }
+        // A newer track was started while this preview downloaded.
+        if (this.currentIndex !== index || this.queue[index] !== track) return;
+        this.streamError = "";
+      } else {
+        source = track.path;
+      }
+
       if (this.audio) {
         this.ensureWebAnalyser();
         try {
@@ -442,7 +473,7 @@ class Player {
         } catch {
           /* playback remains available even if analysis cannot resume */
         }
-        this.audio.src = convertFileSrc(track.path);
+        this.audio.src = convertFileSrc(source);
         this.audio.currentTime = 0;
         this.audio.volume = this.volume;
         try {

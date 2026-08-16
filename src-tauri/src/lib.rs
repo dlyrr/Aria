@@ -4,6 +4,7 @@ mod lastfm;
 mod lyrics;
 mod media;
 mod metadata;
+mod streaming;
 
 use std::path::PathBuf;
 
@@ -443,6 +444,8 @@ pub fn run() {
             discord::discord_save_settings,
             discord::discord_set_activity,
             discord::discord_clear_activity,
+            streaming::stream_search,
+            streaming::cache_stream,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

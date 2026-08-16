@@ -14,7 +14,8 @@
       | "settings"
       | "search"
       | "pin"
-      | "add";
+      | "add"
+      | "streaming";
     size?: number;
   } = $props();
 </script>
@@ -69,5 +70,10 @@
     <path d="M12 13v7.5" />
   {:else if name === "add"}
     <path d="M12 5v14M5 12h14" />
+  {:else if name === "streaming"}
+    <!-- A note between two arcs: music arriving from somewhere else. -->
+    <circle cx="11" cy="16.5" r="2.5" />
+    <path d="M13.5 16.5V6l4 1.4" />
+    <path d="M18.5 12.5a4 4 0 0 0 0-5.6M21 15a7.6 7.6 0 0 0 0-10.6" />
   {/if}
 </svg>

@@ -10,6 +10,7 @@ export type View =
   | "playlist"
   | "queue"
   | "lyrics"
+  | "streaming"
   | "settings";
 
 interface HistoryItem {

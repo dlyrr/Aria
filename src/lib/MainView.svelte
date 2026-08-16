@@ -13,6 +13,7 @@
   import PlaylistDetail from "$lib/views/PlaylistDetail.svelte";
   import QueueView from "$lib/views/QueueView.svelte";
   import Lyrics from "$lib/views/Lyrics.svelte";
+  import Streaming from "$lib/views/Streaming.svelte";
   import Settings from "$lib/views/Settings.svelte";
 </script>
 
@@ -40,6 +41,8 @@
       <QueueView />
     {:else if nav.view === "lyrics"}
       <Lyrics />
+    {:else if nav.view === "streaming"}
+      <Streaming />
     {:else if nav.view === "settings"}
       <Settings />
     {/if}
