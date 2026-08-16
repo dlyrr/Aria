@@ -16,24 +16,18 @@
     backdrop: { key: string; art: string | null; palette: ArtworkPalette };
   } = $props();
 
-  /** Where the Appearance panel was summoned from; null while it is closed. */
-  let appearance = $state<{ x: number; y: number } | null>(null);
-
-  // A negative anchor means "nothing to sit beside" — the gear button, which is
-  // itself in the corner the panel would tuck into.
-  function openAppearance(x = -1, y = -1) {
-    appearance = { x, y };
-  }
+  /** The Appearance panel; it always opens centre-screen. */
+  let appearance = $state(false);
 </script>
 
 {#if immersiveStyle.mode === "solarium"}
-  <Solarium {backdrop} onappearance={openAppearance} />
+  <Solarium {backdrop} onappearance={() => (appearance = true)} />
 {:else}
   <ImmersiveOne {backdrop} />
 {/if}
 
 <ImmersiveChrome
   {appearance}
-  onopen={openAppearance}
-  onclose={() => (appearance = null)}
+  onopen={() => (appearance = true)}
+  onclose={() => (appearance = false)}
 />

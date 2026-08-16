@@ -7,6 +7,7 @@
   //! else — so it can sit over the artwork without taking the screen from it.
   import { lyrics, wordProgress } from "$lib/lyrics.svelte";
   import { player } from "$lib/player.svelte";
+  import { glass } from "$lib/liquidGlass";
 
   const synced = $derived(lyrics.status === "synced" && lyrics.lines.length > 0);
 
@@ -26,7 +27,10 @@
 </script>
 
 {#if synced}
-  <div class="compact-lyrics">
+  <div
+    class="compact-lyrics"
+    use:glass={{ blur: 26, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28 }}
+  >
     <div class="now-line" class:waiting={!current}>
       {#if current?.words?.length}
         <!-- One line, no whitespace between spans: word text carries its own
@@ -48,16 +52,13 @@
   .compact-lyrics {
     padding: 14px 26px 13px;
     border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background:
-      linear-gradient(
-        160deg,
-        color-mix(in srgb, var(--sol-primary, #fff) 14%, transparent),
-        color-mix(in srgb, var(--sol-secondary, #000) 10%, transparent)
-      ),
-      rgba(12, 5, 10, 0.34);
-    backdrop-filter: blur(26px) saturate(1.35);
-    box-shadow: 0 20px 50px rgba(10, 3, 8, 0.28);
+    border: 1px solid var(--sol-hairline, rgba(255, 255, 255, 0.24));
+    /* Same glass as the rest of Solarium — see `.solarium` for the recipe. */
+    background: var(--sol-glass, rgba(255, 255, 255, 0.1));
+    backdrop-filter: blur(26px) saturate(1.7) brightness(1.02);
+    box-shadow:
+      var(--sol-rim, inset 0 1px 0 rgba(255, 255, 255, 0.3)),
+      0 20px 50px rgba(10, 3, 8, 0.28);
     text-align: center;
     font-family: var(--font-lyrics);
   }

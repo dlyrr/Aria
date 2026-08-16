@@ -14,15 +14,16 @@
     type MaskType,
   } from "$lib/immersiveStyle.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
+  import { glass } from "$lib/liquidGlass";
 
   let {
     appearance,
     onopen,
     onclose,
   }: {
-    /** Where the panel was asked for, or null when it is closed. */
-    appearance: { x: number; y: number } | null;
-    onopen: (x?: number, y?: number) => void;
+    /** Whether the Appearance panel is up. It always sits centre-screen. */
+    appearance: boolean;
+    onopen: () => void;
     onclose: () => void;
   } = $props();
 
@@ -30,10 +31,6 @@
   let menuEl = $state<HTMLElement | null>(null);
   let modeSubmenu = $state(false);
 
-  let panelEl = $state<HTMLElement | null>(null);
-  let panelLeft = $state(0);
-  let panelTop = $state(0);
-  let placed = $state(false);
   /** Which dropdown is expanded, by row key. */
   let openSelect = $state<string | null>(null);
 
@@ -41,7 +38,7 @@
 
   // Tells the mode component to leave Escape alone while any of this is up.
   $effect(() => {
-    ui.immersiveOverlay = !!menu || !!appearance || !!openSelect;
+    ui.immersiveOverlay = !!menu || appearance || !!openSelect;
   });
 
   function onContextMenu(e: MouseEvent) {
@@ -83,30 +80,9 @@
     };
   });
 
-  // Same for the panel, which is measured after it mounts: a negative anchor
-  // means "no click to sit next to" (the gear button), so it tucks into the
-  // bottom-right corner instead.
-  $effect(() => {
-    const at = appearance;
-    const el = panelEl;
-    if (!at || !el) {
-      placed = false;
-      return;
-    }
-    const r = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const x = at.x >= 0 ? at.x : vw - r.width - 84;
-    const y = at.y >= 0 ? at.y : vh - r.height - 84;
-    panelLeft = Math.max(12, Math.min(x, vw - r.width - 12));
-    panelTop = Math.max(12, Math.min(y, vh - r.height - 12));
-    placed = true;
-  });
-
   function openAppearanceFromMenu() {
-    const at = menu;
     menu = null;
-    onopen(at?.x, at?.y);
+    onopen();
   }
 
   function pickMode(mode: ImmersiveMode) {
@@ -128,6 +104,7 @@
     tabindex="-1"
     bind:this={menuEl}
     style="left:{menuPos.left}px;top:{menuPos.top}px"
+    use:glass={{ blur: 30, saturate: 1.6, brightness: 0.9, bezel: 12, strength: 18 }}
     transition:fade={{ duration: 110 }}
   >
     <button class="imm-item" role="menuitem" onclick={openAppearanceFromMenu}>
@@ -153,7 +130,11 @@
         <span class="imm-arrow">›</span>
       </button>
       {#if modeSubmenu}
-        <div class="imm-menu imm-submenu" role="menu">
+        <div
+          class="imm-menu imm-submenu"
+          role="menu"
+          use:glass={{ blur: 30, saturate: 1.6, brightness: 0.9, bezel: 12, strength: 18 }}
+        >
           {#each IMMERSIVE_MODES as option (option.id)}
             <button class="imm-item" role="menuitem" onclick={() => pickMode(option.id)}>
               <span class="imm-tick">
@@ -194,13 +175,14 @@
 {/if}
 
 {#if appearance}
+  <!-- Not modal: it stays up while you work the transport or toggle the lyric
+       card behind it, since half of what it changes is only visible there.
+       The X or Escape closes it. -->
   <div
     class="appearance"
-    class:placed
-    bind:this={panelEl}
-    style="left:{panelLeft}px;top:{panelTop}px"
     role="dialog"
     aria-label="Appearance"
+    use:glass={{ blur: 34, saturate: 1.6, brightness: 0.92, bezel: 22, strength: 28 }}
     transition:fade={{ duration: 140 }}
   >
     <div class="head">
@@ -336,7 +318,12 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="select-scrim" onpointerdown={() => (openSelect = null)}></div>
-      <div class="select-menu" role="listbox" transition:fade={{ duration: 100 }}>
+      <div
+        class="select-menu"
+        role="listbox"
+        use:glass={{ blur: 28, saturate: 1.5, brightness: 0.8, bezel: 10, strength: 14 }}
+        transition:fade={{ duration: 100 }}
+      >
         {#each options as option (option.v)}
           <button
             class="select-item"
@@ -367,6 +354,8 @@
     z-index: 2147483647;
     background: transparent;
   }
+  /* Smoked liquid glass: the same rim and blur as Solarium's panes, over a
+     darker fill so 13px type holds up wherever the menu lands. */
   .imm-menu {
     position: fixed;
     z-index: 2147483647;
@@ -375,12 +364,17 @@
     display: flex;
     flex-direction: column;
     gap: 1px;
-    border-radius: 11px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(22, 14, 20, 0.9);
-    backdrop-filter: blur(30px) saturate(1.4);
-    box-shadow: 0 18px 48px rgba(8, 3, 7, 0.45);
-    color: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03) 55%),
+      rgba(18, 10, 16, 0.5);
+    backdrop-filter: blur(30px) saturate(1.6) brightness(0.9);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+      0 18px 48px rgba(8, 3, 7, 0.45);
+    color: rgba(255, 255, 255, 0.92);
   }
   .imm-sub-wrap {
     position: relative;
@@ -428,22 +422,24 @@
   .appearance {
     position: fixed;
     z-index: 2147483647;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     width: 460px;
     max-width: calc(100vw - 24px);
     padding: 14px 16px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.13);
-    background: rgba(18, 12, 16, 0.86);
-    backdrop-filter: blur(34px) saturate(1.4);
-    box-shadow: 0 26px 70px rgba(6, 2, 6, 0.5);
-    color: rgba(255, 255, 255, 0.9);
-    /* Measured before it is placed; showing it at 0,0 first would read as the
-       panel jumping across the screen. */
-    opacity: 0;
-    transition: opacity 120ms ease;
-  }
-  .appearance.placed {
-    opacity: 1;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.06)),
+      rgba(16, 9, 14, 0.46);
+    backdrop-filter: blur(34px) saturate(1.6) brightness(0.92);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      inset 1px 0 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+      0 26px 70px rgba(6, 2, 6, 0.5);
+    color: rgba(255, 255, 255, 0.92);
   }
   .head {
     display: flex;
@@ -571,10 +567,14 @@
     display: flex;
     flex-direction: column;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(10, 7, 9, 0.94);
-    backdrop-filter: blur(24px);
-    box-shadow: 0 18px 44px rgba(4, 2, 4, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background:
+      linear-gradient(165deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 60%),
+      rgba(10, 6, 9, 0.6);
+    backdrop-filter: blur(28px) saturate(1.5) brightness(0.8);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.26),
+      0 18px 44px rgba(4, 2, 4, 0.5);
   }
   .select-item {
     display: flex;

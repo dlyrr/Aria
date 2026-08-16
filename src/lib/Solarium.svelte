@@ -2,16 +2,17 @@
   //! Solarium — the second immersive mode.
   //!
   //! One frames the cover; Solarium *is* the cover. The artwork is cropped to a
-  //! target aspect ratio, scaled until it covers the stage, and then dissolved
-  //! at its edges into the colour field derived from that same cover — so there
-  //! is no frame, no edge and no seam between the art and the room it lights.
-  //! Everything else (transport, lyrics, queue) floats over it as glass.
+  //! target aspect ratio, made as tall as the window, and dissolved at its
+  //! edges into the colour field derived from that same cover — so there is no
+  //! frame, no edge and no seam between the art and the room it lights.
+  //! Everything else (transport, lyrics, queue) floats over it as liquid glass.
   import { fade } from "svelte/transition";
   import { onMount } from "svelte";
   import { player, formatTime } from "$lib/player.svelte";
   import { ui } from "$lib/ui.svelte";
   import { theme } from "$lib/theme.svelte";
   import { immersiveStyle, aspectValue } from "$lib/immersiveStyle.svelte";
+  import { glass } from "$lib/liquidGlass";
   import ArtistLink from "$lib/ArtistLink.svelte";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import CompactLyrics from "$lib/CompactLyrics.svelte";
@@ -26,7 +27,7 @@
   }: {
     backdrop: { key: string; art: string | null; palette: ArtworkPalette };
     /** Opens the Appearance panel — owned by Immersive.svelte, shared with One. */
-    onappearance: (x?: number, y?: number) => void;
+    onappearance: () => void;
   } = $props();
 
   let seeking = $state(false);
@@ -50,20 +51,23 @@
   const queueSide = $derived(ui.solQueue && immersiveStyle.queueOnSide);
   const queueFloat = $derived(ui.solQueue && !immersiveStyle.queueOnSide);
 
-  /** The artwork stage — everything left of the side cards, edge to edge. */
-  let regionW = $state(0);
-  let regionH = $state(0);
+  /** The whole stage, and the width the side cards take out of it. */
+  let stageW = $state(0);
+  let stageH = $state(0);
+  let sideW = $state(0);
 
   const ratio = $derived(aspectValue(immersiveStyle.aspect));
-  // The frame is the target ratio scaled until it *covers* the stage, not until
-  // it fits inside it: a 4:3 crop on a 16:9 window has to overflow sideways, or
-  // the mask would fade out into bare colour well before the screen edge.
-  const frameW = $derived(Math.max(regionW, regionH * ratio));
-  const frameH = $derived(Math.max(regionH, regionW / ratio));
-  const frameLeft = $derived((regionW - frameW) / 2);
-  // Artwork Y Position drives both the frame's overflow (0 = top-aligned,
-  // 100 = bottom) and the crop inside it, so one slider reads as one movement.
-  const frameTop = $derived((regionH - frameH) * (immersiveStyle.artworkY / 100));
+  // The frame is the target ratio at the full height of the window: a 4:3
+  // frame in a 16:9 window leaves colour field either side of the art, and a
+  // 32:9 one runs off both edges. Artwork Y Position picks which band of the
+  // cover survives the crop into that frame.
+  const frameH = $derived(stageH);
+  const frameW = $derived(stageH * ratio);
+  // Centred on the space the side cards leave, not on the window: the art is
+  // painted right across the stage and the cards' glass blurs whatever ends up
+  // under them, so the crop can straddle the join without a seam.
+  const freeW = $derived(Math.max(0, stageW - (lyricsSide || queueSide ? sideW : 0)));
+  const frameLeft = $derived((freeW - frameW) / 2);
 
   const tint = $derived(
     [
@@ -142,37 +146,45 @@
     </div>
   {/if}
 
-  <div class="stage" class:with-side={lyricsSide || queueSide}>
-    <div class="art-region" bind:clientWidth={regionW} bind:clientHeight={regionH}>
-      {#if art}
-        <div
-          class="art-frame"
-          data-mask={immersiveStyle.maskType}
-          style="width:{frameW}px;height:{frameH}px;left:{frameLeft}px;top:{frameTop}px"
-        >
-          <!-- Keyed so a new cover cross-fades rather than popping in over the
-               outgoing one's crop. -->
-          {#key art}
-            <img
-              src={art}
-              alt=""
-              style="object-position:50% {immersiveStyle.artworkY}%"
-              transition:fade={{ duration: 420 }}
-            />
-          {/key}
-        </div>
-      {/if}
-    </div>
+  <div class="stage" bind:clientWidth={stageW} bind:clientHeight={stageH}>
+    {#if art}
+      <div
+        class="art-frame"
+        data-mask={immersiveStyle.maskType}
+        style="width:{frameW}px;height:{frameH}px;left:{frameLeft}px"
+      >
+        <!-- Keyed so a new cover cross-fades rather than popping in over the
+             outgoing one's crop. -->
+        {#key art}
+          <img
+            src={art}
+            alt=""
+            style="object-position:50% {immersiveStyle.artworkY}%"
+            transition:fade={{ duration: 420 }}
+          />
+        {/key}
+      </div>
+    {/if}
 
     {#if lyricsSide || queueSide}
-      <div class="side">
+      <div class="side" bind:clientWidth={sideW}>
         {#if lyricsSide}
-          <section class="card lyrics-card" aria-label="Lyrics" transition:fade={{ duration: 220 }}>
+          <section
+            class="card lyrics-card"
+            aria-label="Lyrics"
+            use:glass={{ blur: 36, saturate: 1.7, brightness: 1.04, bezel: 30, strength: 40 }}
+            transition:fade={{ duration: 220 }}
+          >
             <LyricsPanel />
           </section>
         {/if}
         {#if queueSide}
-          <section class="card queue-card" aria-label="Play queue" transition:fade={{ duration: 220 }}>
+          <section
+            class="card queue-card"
+            aria-label="Play queue"
+            use:glass={{ blur: 36, saturate: 1.7, brightness: 1.04, bezel: 30, strength: 40 }}
+            transition:fade={{ duration: 220 }}
+          >
             {@render queueBody()}
           </section>
         {/if}
@@ -187,7 +199,12 @@
   {/if}
 
   {#if queueFloat}
-    <section class="card queue-float" aria-label="Play queue" transition:fade={{ duration: 200 }}>
+    <section
+      class="card queue-float"
+      aria-label="Play queue"
+      use:glass={{ blur: 36, saturate: 1.7, brightness: 1.04, bezel: 26, strength: 36 }}
+      transition:fade={{ duration: 200 }}
+    >
       {@render queueBody()}
     </section>
   {/if}
@@ -197,7 +214,13 @@
       <WindowControls fullscreenAware />
     </div>
 
-    <div class="view-toggle" role="group" aria-label="Layout" transition:fade={{ duration: 160 }}>
+    <div
+      class="view-toggle"
+      role="group"
+      aria-label="Layout"
+      use:glass={{ blur: 22, saturate: 1.7, bezel: 12, strength: 22 }}
+      transition:fade={{ duration: 160 }}
+    >
       <button
         class:selected={!ui.solLyrics && !ui.solQueue}
         title="Artwork only"
@@ -236,7 +259,11 @@
       </button>
     </div>
 
-    <div class="transport" transition:fade={{ duration: 180 }}>
+    <div
+      class="transport"
+      use:glass={{ blur: 26, saturate: 1.7, brightness: 0.98, bezel: 16, strength: 26 }}
+      transition:fade={{ duration: 180 }}
+    >
       <div class="left-cluster">
         <button
           class="ctl secondary"
@@ -323,7 +350,11 @@
             <ImmersiveIcon name="volume" size={17} />
           </button>
           {#if volumeOpen}
-            <div class="volume-pop" transition:fade={{ duration: 120 }}>
+            <div
+              class="volume-pop"
+              use:glass={{ blur: 24, saturate: 1.7, bezel: 12, strength: 20 }}
+              transition:fade={{ duration: 120 }}
+            >
               <div class="track volume" style="--pct:{volPct}%">
                 <input
                   aria-label="Volume"
@@ -373,6 +404,7 @@
       class="gear"
       title="Appearance"
       aria-label="Appearance"
+      use:glass={{ blur: 22, saturate: 1.7, bezel: 14, strength: 22 }}
       onclick={() => onappearance()}
       transition:fade={{ duration: 160 }}
     >
@@ -421,11 +453,33 @@
   .solarium {
     --sol-text: rgba(255, 255, 255, 0.96);
     --sol-muted: rgba(255, 255, 255, 0.72);
-    /* Every pane of glass in here is the cover's own deep tone over black, so
-       the chrome is lit by the record rather than painted on top of it. */
-    --sol-glass: color-mix(in srgb, var(--sol-deep, #201018) 52%, rgba(14, 6, 12, 0.5));
-    --sol-glass-strong: color-mix(in srgb, var(--sol-deep, #201018) 62%, rgba(10, 4, 9, 0.62));
-    --sol-hairline: rgba(255, 255, 255, 0.16);
+    /* Liquid glass. The pane itself is nearly clear — a thin milk of white so
+       it reads as a surface — and everything else is done to what's behind
+       it: `use:glass` blurs and re-saturates the backdrop and bends it at the
+       rim. The tint therefore comes from the record, not from a swatch. */
+    --sol-glass: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.16),
+        rgba(255, 255, 255, 0.05) 45%,
+        rgba(255, 255, 255, 0.09)
+      );
+    /* Slightly smoked, for menus that need to hold small type. */
+    --sol-glass-strong: linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.14),
+        rgba(255, 255, 255, 0.04) 50%,
+        rgba(255, 255, 255, 0.07)
+      ),
+      rgba(16, 8, 14, 0.28);
+    --sol-hairline: rgba(255, 255, 255, 0.24);
+    /* The bright lip along the top-left edge and the shadow under the bottom
+       one — the two highlights that make a slab of glass read as having a
+       thickness. */
+    --sol-rim:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      inset 1px 0 0 rgba(255, 255, 255, 0.14),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+      inset -1px 0 0 rgba(0, 0, 0, 0.06);
     position: fixed;
     inset: 0;
     width: 100vw;
@@ -448,31 +502,24 @@
     pointer-events: none;
   }
 
+  /* The stage is the whole window, and it is the *window* the frame is sized
+     from — never its content. The lyric card scrolls inside a fixed height
+     precisely so nothing in here can grow the stage. */
   .stage {
     position: absolute;
     inset: 0;
     z-index: 1;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    transition: grid-template-columns 380ms var(--motion-spring);
-  }
-  .stage.with-side {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 46%);
-  }
-  .art-region {
-    position: relative;
-    min-width: 0;
     overflow: hidden;
   }
-  /* Sized in JS: the cover math needs the region's pixels, and a CSS-only
-     `cover` of an arbitrary ratio inside an arbitrary box doesn't exist. */
+  /* Sized in JS: the cover math needs the stage's pixels, and a CSS-only frame
+     of an arbitrary ratio at exactly the window's height doesn't exist. */
   .art-frame {
     position: absolute;
+    top: 0;
     transition:
       width 380ms var(--motion-spring),
       height 380ms var(--motion-spring),
-      left 380ms var(--motion-spring),
-      top 380ms var(--motion-spring);
+      left 380ms var(--motion-spring);
   }
   .art-frame img {
     position: absolute;
@@ -486,53 +533,69 @@
   }
   /* The mask is the whole idea: no border, no shadow, no frame — the cover just
      stops being a picture somewhere near the edge of the screen. */
+  /* The frame is as tall as the window, so the fade is mostly sideways: the
+     top and bottom run to the screen edge nearly solid, the sides dissolve
+     into the field over the outer third. A wide ellipse rather than a round
+     one, or the corners of a 4:3 frame would go before its sides did. */
   .art-frame[data-mask="radial"] {
     -webkit-mask-image: radial-gradient(
-      ellipse 74% 74% at 50% 50%,
-      #000 34%,
-      rgba(0, 0, 0, 0.72) 62%,
-      transparent 92%
+      ellipse 58% 92% at 50% 50%,
+      #000 52%,
+      rgba(0, 0, 0, 0.62) 76%,
+      transparent 100%
     );
     mask-image: radial-gradient(
-      ellipse 74% 74% at 50% 50%,
-      #000 34%,
-      rgba(0, 0, 0, 0.72) 62%,
-      transparent 92%
+      ellipse 58% 92% at 50% 50%,
+      #000 52%,
+      rgba(0, 0, 0, 0.62) 76%,
+      transparent 100%
     );
   }
   /* Two straight fades intersected: a soft-edged rectangle rather than an
      ellipse, which keeps a wide crop reading as a wide crop. */
   .art-frame[data-mask="linear"] {
     -webkit-mask-image:
-      linear-gradient(to right, transparent 0%, #000 17%, #000 83%, transparent 100%),
-      linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+      linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
     mask-image:
-      linear-gradient(to right, transparent 0%, #000 17%, #000 83%, transparent 100%),
-      linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+      linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 6%, #000 94%, transparent 100%);
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
   }
 
+  /* Over the artwork rather than beside it. Its own height is fixed by the
+     window, and the card scrolls inside it — see `.stage`. */
   .side {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    width: max(380px, 46%);
     display: flex;
     gap: 16px;
     min-width: 0;
-    padding: 58px 28px 118px;
+    min-height: 0;
+    padding: 64px 28px 118px;
   }
   .card {
     flex: 1;
     min-width: 0;
-    border-radius: 26px;
+    min-height: 0;
+    /* Grid, so the lyric panel's `height: 100%` resolves against a definite
+       track instead of against the content it is meant to be scrolling. */
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    border-radius: 28px;
     border: 1px solid var(--sol-hairline);
-    background:
-      linear-gradient(
-        150deg,
-        color-mix(in srgb, var(--sol-primary, #fff) 16%, transparent),
-        color-mix(in srgb, var(--sol-secondary, #000) 10%, transparent)
-      ),
-      rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(26px) saturate(1.3);
-    box-shadow: 0 30px 80px rgba(10, 3, 8, 0.26);
+    background: var(--sol-glass);
+    /* Baseline frosting; `use:glass` replaces this inline with the same blur
+       plus the refracting rim, and if it can't, this is what you get. */
+    backdrop-filter: blur(36px) saturate(1.7) brightness(1.04);
+    box-shadow:
+      var(--sol-rim),
+      0 30px 80px rgba(10, 3, 8, 0.28);
     overflow: hidden;
   }
   .queue-card {
@@ -622,8 +685,10 @@
     border-radius: 12px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(28px) saturate(1.4);
-    box-shadow: 0 12px 34px rgba(12, 4, 10, 0.24);
+    backdrop-filter: blur(22px) saturate(1.7);
+    box-shadow:
+      var(--sol-rim),
+      0 12px 34px rgba(12, 4, 10, 0.24);
   }
   .view-toggle button {
     width: 38px;
@@ -658,8 +723,10 @@
     border-radius: 17px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(30px) saturate(1.5);
-    box-shadow: 0 20px 54px rgba(12, 4, 10, 0.3);
+    backdrop-filter: blur(26px) saturate(1.7) brightness(0.98);
+    box-shadow:
+      var(--sol-rim),
+      0 20px 54px rgba(12, 4, 10, 0.3);
   }
   .left-cluster,
   .right-cluster {
@@ -722,8 +789,12 @@
     padding: 6px 14px 9px;
     border-radius: 11px;
     overflow: hidden;
-    background: rgba(10, 4, 9, 0.34);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    /* The one dark thing on the pill: the record sits *in* the glass, so it's
+       cut deeper than the surface around it. */
+    background: rgba(10, 4, 9, 0.3);
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.28),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   }
   .now-meta {
     min-width: 0;
@@ -805,8 +876,10 @@
     border-radius: 12px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass-strong);
-    backdrop-filter: blur(28px) saturate(1.4);
-    box-shadow: 0 16px 40px rgba(10, 3, 8, 0.34);
+    backdrop-filter: blur(24px) saturate(1.7);
+    box-shadow:
+      var(--sol-rim),
+      0 16px 40px rgba(10, 3, 8, 0.34);
   }
 
   .gear {
@@ -822,8 +895,10 @@
     color: rgba(255, 255, 255, 0.85);
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(28px) saturate(1.4);
-    box-shadow: 0 14px 36px rgba(12, 4, 10, 0.26);
+    backdrop-filter: blur(22px) saturate(1.7);
+    box-shadow:
+      var(--sol-rim),
+      0 14px 36px rgba(12, 4, 10, 0.26);
     transition:
       background 160ms ease,
       color 160ms ease,
@@ -831,12 +906,14 @@
   }
   .gear:hover {
     color: #fff;
-    background: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.22);
     transform: rotate(45deg);
   }
 
+  /* `.card` is a grid with one track; the scroller fills it. */
   .queue-scroll {
     height: 100%;
+    min-height: 0;
     overflow-y: auto;
     padding: 18px 14px 24px;
     scrollbar-width: thin;
@@ -937,10 +1014,8 @@
   }
 
   @media (max-width: 1080px) {
-    .stage.with-side {
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 52%);
-    }
     .side {
+      width: max(320px, 52%);
       padding: 54px 18px 112px;
       flex-direction: column;
     }
@@ -973,7 +1048,6 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .stage,
     .art-frame,
     .compact-slot,
     .ctl,
