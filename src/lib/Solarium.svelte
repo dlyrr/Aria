@@ -13,6 +13,7 @@
   import { theme } from "$lib/theme.svelte";
   import { immersiveStyle, aspectValue } from "$lib/immersiveStyle.svelte";
   import { library } from "$lib/library.svelte";
+  import { nav } from "$lib/nav.svelte";
   import { glass } from "$lib/liquidGlass";
   import { artworkLuma, lumaOver, type ArtworkLuma } from "$lib/artworkLuma";
   import ArtistLink from "$lib/ArtistLink.svelte";
@@ -151,6 +152,21 @@
       `--sol-deep:${backdrop.palette.deep}`,
     ].join(";"),
   );
+
+  /** Opens the library browser on the current track's album. */
+  function goToAlbum() {
+    const track = player.current;
+    if (!track) return;
+    const album = library.albums.find((a) => a.name === track.album);
+    if (album) {
+      nav.go("album", album.id);
+    } else {
+      nav.query = track.album;
+      nav.go("albums");
+    }
+    ui.browserOpen = true;
+    wake(true);
+  }
 
   // The side column holds one card. With the queue on the side, opening one
   // closes the other; a floating queue can share the screen with the lyrics.
@@ -403,7 +419,11 @@
         <div class="now-title">{player.current?.title ?? "Not Playing"}</div>
         <div class="now-sub">
           {#if player.current}
-            {player.current.album || "Single"} –
+            <!-- The album is a way in: it opens the browser on that record. -->
+            <button class="album-link" onclick={goToAlbum} title="Open in the browser">
+              {player.current.album || "Single"}
+            </button>
+            –
             <ArtistLink artist={player.current.artist} />
           {:else}
             Nothing queued
@@ -619,7 +639,9 @@
        backdrop filter (see liquidGlass.ts) that is what makes an edge read as
        the edge of tinted glass rather than a white outline. */
     --sol-edge: color-mix(in srgb, var(--sol-light, #fff) 62%, rgba(255, 255, 255, 0.9));
-    --sol-hairline: color-mix(in srgb, var(--sol-edge) 46%, transparent);
+    /* Faint on purpose: the live rim `use:glass` draws just inside it is the
+       real edge, and this is only there for the frame before it lands. */
+    --sol-hairline: color-mix(in srgb, var(--sol-edge) 26%, transparent);
     --sol-rim:
       inset 0 1px 0 color-mix(in srgb, var(--sol-edge) 58%, transparent),
       inset 1px 0 0 color-mix(in srgb, var(--sol-edge) 26%, transparent),
@@ -703,27 +725,27 @@
      bottom hold nearly solid. */
   .art-frame[data-mask="radial"] {
     -webkit-mask-image: radial-gradient(
-      ellipse 58% 72% at 50% 50%,
-      #000 40%,
-      rgba(0, 0, 0, 0.55) 72%,
-      transparent 100%
+      ellipse 54% 66% at 50% 50%,
+      #000 32%,
+      rgba(0, 0, 0, 0.5) 66%,
+      transparent 96%
     );
     mask-image: radial-gradient(
-      ellipse 58% 72% at 50% 50%,
-      #000 40%,
-      rgba(0, 0, 0, 0.55) 72%,
-      transparent 100%
+      ellipse 54% 66% at 50% 50%,
+      #000 32%,
+      rgba(0, 0, 0, 0.5) 66%,
+      transparent 96%
     );
   }
   /* Two straight fades intersected: the whole picture, softened only along
      its left and right edges, so a square frame reads as a square. */
   .art-frame[data-mask="linear"] {
     -webkit-mask-image:
-      linear-gradient(to right, transparent 0%, #000 11%, #000 89%, transparent 100%),
-      linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
+      linear-gradient(to right, transparent 0%, #000 17%, #000 83%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 5%, #000 95%, transparent 100%);
     mask-image:
-      linear-gradient(to right, transparent 0%, #000 11%, #000 89%, transparent 100%),
-      linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
+      linear-gradient(to right, transparent 0%, #000 17%, #000 83%, transparent 100%),
+      linear-gradient(to bottom, transparent 0%, #000 5%, #000 95%, transparent 100%);
     -webkit-mask-composite: source-in;
     mask-composite: intersect;
   }
@@ -889,9 +911,8 @@
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 16px;
-    padding: 8px 16px;
-    /* Near enough a pill: the bar is ~54px tall. */
-    border-radius: 26px;
+    padding: 8px 12px 8px 16px;
+    border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
     backdrop-filter: blur(10px) saturate(1.6) brightness(1.02);
@@ -947,7 +968,7 @@
   .time {
     margin-left: 8px;
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
     color: rgba(255, 255, 255, 0.82);
     white-space: nowrap;
@@ -960,8 +981,8 @@
     gap: 10px;
     width: clamp(300px, 34vw, 480px);
     min-width: 0;
-    padding: 6px 12px 9px 16px;
-    border-radius: 14px;
+    padding: 6px 12px 9px 18px;
+    border-radius: 18px;
     overflow: hidden;
     /* The one dark thing on the pill: the record sits *in* the glass, so it's
        cut deeper than the surface around it. */
@@ -977,7 +998,7 @@
   }
   .now-title {
     font-size: 12.5px;
-    font-weight: 720;
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -988,6 +1009,19 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .album-link {
+    display: inline;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    border-radius: 4px;
+    transition: color 140ms ease;
+  }
+  .album-link:hover {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .now-badges {
     display: flex;

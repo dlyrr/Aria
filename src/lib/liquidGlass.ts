@@ -11,6 +11,12 @@
 //! The stylesheet still sets a plain blurred `backdrop-filter` on every glass
 //! element. This only ever *replaces* it inline, so if the url() form fails to
 //! parse the pane keeps its flat frosting rather than going clear.
+//!
+//! The action also gives the pane its rim: a hairline ring just inside the
+//! edge that is itself a backdrop filter — the colour behind the edge, pushed
+//! brighter and more saturated. Because it reads the backdrop and not a
+//! palette, it follows the picture as the picture moves: the rim over a red
+//! patch is red, over a green one green, frame by frame.
 
 export interface GlassOptions {
   /** Backdrop blur radius, px. */
@@ -28,6 +34,8 @@ export interface GlassOptions {
    * a bevel. 0 turns it off.
    */
   dispersion?: number;
+  /** Width of the live-coloured hairline at the edge, px. 0 for none. */
+  rim?: number;
 }
 
 const DEFAULTS: Required<GlassOptions> = {
@@ -37,6 +45,7 @@ const DEFAULTS: Required<GlassOptions> = {
   bezel: 22,
   strength: 34,
   dispersion: 0.12,
+  rim: 1.5,
 };
 
 const NS = "http://www.w3.org/2000/svg";
@@ -139,9 +148,59 @@ function cornerRadius(node: HTMLElement): number {
   return Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * The rim ring. A child rather than a pseudo-element so the action can add it
+ * to any element without a stylesheet rule per host. Its mask keeps only a
+ * `width`-px band inside the edge; its own backdrop-filter is what colours it.
+ */
+function makeRim(width: number): HTMLSpanElement {
+  const rim = document.createElement("span");
+  rim.setAttribute("aria-hidden", "true");
+  rim.className = "liquid-glass-rim";
+  const ring =
+    "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)";
+  const style = rim.style;
+  style.position = "absolute";
+  style.inset = "0";
+  style.borderRadius = "inherit";
+  style.pointerEvents = "none";
+  style.zIndex = "2147483647";
+  style.padding = `${width}px`;
+  style.setProperty("-webkit-mask", ring);
+  style.setProperty("mask", ring);
+  style.setProperty("-webkit-mask-composite", "xor");
+  style.setProperty("mask-composite", "exclude");
+  // The colour behind the edge, lifted: bright enough to read as a lit rim,
+  // saturated enough that a muted backdrop still shows a hue.
+  const lift = "brightness(1.6) saturate(2.4) contrast(1.08)";
+  style.setProperty("backdrop-filter", lift);
+  style.setProperty("-webkit-backdrop-filter", lift);
+  // A whisper of white on top so it never disappears against a dark cover.
+  style.background = "rgba(255,255,255,0.14)";
+  return rim;
+}
+
 export function glass(node: HTMLElement, options: GlassOptions = {}) {
   let opts = { ...DEFAULTS, ...options };
   const id = `liquid-glass-${++seq}`;
+
+  let rim: HTMLSpanElement | null = null;
+  function ensureRim() {
+    if (opts.rim <= 0) {
+      rim?.remove();
+      rim = null;
+      return;
+    }
+    if (!rim) {
+      rim = makeRim(opts.rim);
+      // The ring is positioned against the host, which must therefore be
+      // positioned itself; most already are.
+      if (getComputedStyle(node).position === "static") node.style.position = "relative";
+      node.appendChild(rim);
+    } else {
+      rim.style.padding = `${opts.rim}px`;
+    }
+  }
 
   let filter: SVGFilterElement | null = null;
   let feImage: SVGFEImageElement | null = null;
@@ -203,6 +262,7 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
 
   function apply() {
     raf = 0;
+    ensureRim();
     if (!supported) return;
     const w = Math.round(node.offsetWidth);
     const h = Math.round(node.offsetHeight);
@@ -254,6 +314,8 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
       if (raf) cancelAnimationFrame(raf);
       filter?.remove();
       filter = null;
+      rim?.remove();
+      rim = null;
     },
   };
 }

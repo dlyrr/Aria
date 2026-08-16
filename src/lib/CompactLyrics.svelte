@@ -5,6 +5,8 @@
   //! is a panel in disguise. This shows the line being sung (word-lit where the
   //! source has word timing) with the next one waiting beneath it, and nothing
   //! else — so it can sit over the artwork without taking the screen from it.
+  import { fly, fade } from "svelte/transition";
+  import { prefersReducedMotion } from "svelte/motion";
   import { lyrics, wordProgress } from "$lib/lyrics.svelte";
   import { player } from "$lib/player.svelte";
   import { glass } from "$lib/liquidGlass";
@@ -24,6 +26,9 @@
     return held.map((d) => Math.max(0, Math.min(1, (d / median - 1.5) / 1.5)));
   }
   const emphasis = $derived(current?.words?.length ? emphasisOf(current.words) : []);
+
+  /** Transition durations collapse to a cut under reduced motion. */
+  const dur = (ms: number) => (prefersReducedMotion.current ? 0 : ms);
 </script>
 
 {#if synced}
@@ -31,20 +36,38 @@
     class="compact-lyrics"
     use:glass={{ blur: 16, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28 }}
   >
-    <div class="now-line" class:waiting={!current}>
-      {#if current?.words?.length}
-        <!-- One line, no whitespace between spans: word text carries its own
-             spacing, and a newline here would show up as an extra gap. -->
-        {#each current.words as w, i (i)}<span class="word" style="--wp:{wordProgress(w, player.position)};--emph:{emphasis[i] ?? 0}"><span class="word-dim">{w.text}</span><span class="word-lit" aria-hidden="true">{w.text}</span></span>{/each}
-      {:else if current?.text}
-        {current.text}
-      {:else}
-        ♪
-      {/if}
+    <!-- Keyed on the line index: a new line rises in as the old one sinks
+         out. Both live in the same grid cell, so the bar doesn't jump while
+         they cross. -->
+    <div class="stack">
+      {#key anchor}
+        <div
+          class="now-line"
+          class:waiting={!current}
+          in:fly={{ y: 16, duration: dur(380), delay: dur(60) }}
+          out:fly={{ y: -14, duration: dur(260) }}
+        >
+          {#if current?.words?.length}
+            <!-- One line, no whitespace between spans: word text carries its own
+                 spacing, and a newline here would show up as an extra gap. -->
+            {#each current.words as w, i (i)}<span class="word" style="--wp:{wordProgress(w, player.position)};--emph:{emphasis[i] ?? 0}"><span class="word-dim">{w.text}</span><span class="word-lit" aria-hidden="true">{w.text}</span></span>{/each}
+          {:else if current?.text}
+            {current.text}
+          {:else}
+            ♪
+          {/if}
+        </div>
+      {/key}
     </div>
-    {#if next?.text}
-      <div class="next-line">{next.text}</div>
-    {/if}
+    <div class="stack next-stack">
+      {#key anchor}
+        {#if next?.text}
+          <div class="next-line" in:fade={{ duration: dur(300), delay: dur(120) }} out:fade={{ duration: dur(160) }}>
+            {next.text}
+          </div>
+        {/if}
+      {/key}
+    </div>
   </div>
 {/if}
 
@@ -61,6 +84,14 @@
       0 20px 50px rgba(10, 3, 8, 0.28);
     text-align: center;
     font-family: var(--font-lyrics);
+  }
+  /* One cell, everything in it stacked: the outgoing and incoming lines
+     overlap for the length of the transition. */
+  .stack {
+    display: grid;
+  }
+  .stack > * {
+    grid-area: 1 / 1;
   }
   .now-line {
     font-size: clamp(18px, 1.45vw, 25px);
