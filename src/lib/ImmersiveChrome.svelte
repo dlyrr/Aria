@@ -104,7 +104,7 @@
     tabindex="-1"
     bind:this={menuEl}
     style="left:{menuPos.left}px;top:{menuPos.top}px"
-    use:glass={{ blur: 30, saturate: 1.6, brightness: 0.9, bezel: 12, strength: 18 }}
+    use:glass={{ blur: 20, saturate: 1.6, brightness: 0.9, bezel: 12, strength: 18 }}
     transition:fade={{ duration: 110 }}
   >
     <button class="imm-item" role="menuitem" onclick={openAppearanceFromMenu}>
@@ -133,7 +133,7 @@
         <div
           class="imm-menu imm-submenu"
           role="menu"
-          use:glass={{ blur: 30, saturate: 1.6, brightness: 0.9, bezel: 12, strength: 18 }}
+          use:glass={{ blur: 20, saturate: 1.6, brightness: 0.9, bezel: 12, strength: 18 }}
         >
           {#each IMMERSIVE_MODES as option (option.id)}
             <button class="imm-item" role="menuitem" onclick={() => pickMode(option.id)}>
@@ -182,7 +182,7 @@
     class="appearance"
     role="dialog"
     aria-label="Appearance"
-    use:glass={{ blur: 34, saturate: 1.6, brightness: 0.92, bezel: 22, strength: 28 }}
+    use:glass={{ blur: 22, saturate: 1.6, brightness: 0.92, bezel: 22, strength: 28 }}
     transition:fade={{ duration: 140 }}
   >
     <div class="head">
@@ -321,7 +321,7 @@
       <div
         class="select-menu"
         role="listbox"
-        use:glass={{ blur: 28, saturate: 1.5, brightness: 0.8, bezel: 10, strength: 14 }}
+        use:glass={{ blur: 18, saturate: 1.5, brightness: 0.8, bezel: 10, strength: 14 }}
         transition:fade={{ duration: 100 }}
       >
         {#each options as option (option.v)}
@@ -369,7 +369,7 @@
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03) 55%),
       rgba(18, 10, 16, 0.5);
-    backdrop-filter: blur(30px) saturate(1.6) brightness(0.9);
+    backdrop-filter: blur(20px) saturate(1.6) brightness(0.9);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(0, 0, 0, 0.14),
@@ -433,7 +433,7 @@
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.06)),
       rgba(16, 9, 14, 0.46);
-    backdrop-filter: blur(34px) saturate(1.6) brightness(0.92);
+    backdrop-filter: blur(22px) saturate(1.6) brightness(0.92);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.32),
       inset 1px 0 0 rgba(255, 255, 255, 0.12),
@@ -571,7 +571,7 @@
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02) 60%),
       rgba(10, 6, 9, 0.6);
-    backdrop-filter: blur(28px) saturate(1.5) brightness(0.8);
+    backdrop-filter: blur(18px) saturate(1.5) brightness(0.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.26),
       0 18px 44px rgba(4, 2, 4, 0.5);

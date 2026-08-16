@@ -14,12 +14,14 @@
   import { immersiveStyle, aspectValue } from "$lib/immersiveStyle.svelte";
   import { library } from "$lib/library.svelte";
   import { glass } from "$lib/liquidGlass";
+  import { artworkLuma, lumaOver, type ArtworkLuma } from "$lib/artworkLuma";
   import ArtistLink from "$lib/ArtistLink.svelte";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import CompactLyrics from "$lib/CompactLyrics.svelte";
   import SolariumQueue from "$lib/SolariumQueue.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
   import WindowControls from "$lib/WindowControls.svelte";
+  import ImmersiveBrowser from "$lib/ImmersiveBrowser.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
 
@@ -80,10 +82,72 @@
   const freeW = $derived(Math.max(0, stageW - (lyricsSide || queueSide ? sideW : 0)));
   const frameLeft = $derived((freeW - frameW) / 2);
 
+  /** Lightness map of the current cover; null until it has loaded. */
+  let luma = $state<ArtworkLuma | null>(null);
+  $effect(() => {
+    const src = art;
+    luma = null;
+    if (!src) return;
+    let cancelled = false;
+    artworkLuma(src).then((v) => {
+      if (!cancelled) luma = v;
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  // How the cover sits in the frame under `object-fit: cover`: scaled until it
+  // covers, then whatever overhangs is what Artwork Y Position pans through.
+  const artAspect = $derived(luma?.aspect ?? 1);
+  const coverScale = $derived(
+    Math.max(frameW / Math.max(1, artAspect), frameH) / Math.max(1, frameH),
+  );
+  const drawnW = $derived(frameH * coverScale * artAspect);
+  const drawnH = $derived(frameH * coverScale);
+  const overflowY = $derived(Math.max(0, drawnH - frameH));
+  // A square cover in a square frame has nothing to pan through, so the slider
+  // would be dead at 1:1. Below a floor of overhang the picture is allowed to
+  // slide past the frame instead — up to a third of the window's height — so
+  // Y keeps meaning "which band of the cover is in the middle" everywhere. Any
+  // frame that already overhangs by that much doesn't move at all.
+  const slack = $derived(Math.max(0, stageH * 0.3 - overflowY));
+  const panPx = $derived(((50 - immersiveStyle.artworkY) / 100) * slack);
+  const artPosition = $derived(
+    `50% calc(${immersiveStyle.artworkY}% ${panPx >= 0 ? "+" : "-"} ${Math.abs(panPx).toFixed(1)}px)`,
+  );
+
+  /**
+   * Which ink a pane over a given stage rectangle should use. The rectangle
+   * is mapped back through the frame's crop onto the cover and the mean
+   * lightness there decides — over a pale picture the glass gets dark type,
+   * as it would on paper.
+   */
+  function inkFor(x0: number, y0: number, x1: number, y1: number): "light" | "dark" {
+    if (!luma || !drawnW || !drawnH) return "light";
+    const offX = frameLeft + (frameW - drawnW) / 2;
+    const offY = ((frameH - drawnH) * immersiveStyle.artworkY) / 100 + panPx;
+    const u = (x: number) => (x - offX) / drawnW;
+    const v = (y: number) => (y - offY) / drawnH;
+    const l = lumaOver(luma, u(x0), v(y0), u(x1), v(y1));
+    // The glass adds a thin milk of white, so it tips dark a little early.
+    return l > 0.56 ? "dark" : "light";
+  }
+  const sideInk = $derived(
+    inkFor(stageW - sideW + 28, 64, stageW - 28, stageH - 118),
+  );
+  const floatInk = $derived(
+    inkFor(freeW / 2 - 280, stageH * 0.13, freeW / 2 + 280, stageH - 118),
+  );
+  const barInk = $derived(
+    inkFor(stageW / 2 - 400, stageH - 176, stageW / 2 + 400, stageH - 108),
+  );
+
   const tint = $derived(
     [
       `--sol-primary:${backdrop.palette.primary}`,
       `--sol-secondary:${backdrop.palette.secondary}`,
+      `--sol-light:${backdrop.palette.accentLight}`,
       `--sol-deep:${backdrop.palette.deep}`,
     ].join(";"),
   );
@@ -184,7 +248,7 @@
           <img
             src={art}
             alt=""
-            style="object-position:50% {immersiveStyle.artworkY}%"
+            style="object-position:{artPosition}"
             transition:fade={{ duration: 420 }}
           />
         {/key}
@@ -197,7 +261,8 @@
           <section
             class="card lyrics-card"
             aria-label="Lyrics"
-            use:glass={{ blur: 36, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40 }}
+            data-ink={sideInk}
+            use:glass={{ blur: 24, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40 }}
             transition:fade={{ duration: 220 }}
           >
             <LyricsPanel />
@@ -207,7 +272,8 @@
           <section
             class="card queue-card"
             aria-label="Play queue"
-            use:glass={{ blur: 36, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40 }}
+            data-ink={sideInk}
+            use:glass={{ blur: 24, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40 }}
             transition:fade={{ duration: 220 }}
           >
             <SolariumQueue variant="side" />
@@ -218,7 +284,7 @@
   </div>
 
   {#if lyricsBar}
-    <div class="compact-slot" class:raised={!idle} transition:fade={{ duration: 200 }}>
+    <div class="compact-slot" data-ink={barInk} transition:fade={{ duration: 200 }}>
       <CompactLyrics />
     </div>
   {/if}
@@ -230,7 +296,8 @@
       class="card queue-float"
       aria-label="Play queue"
       style="left:{freeW / 2}px"
-      use:glass={{ blur: 40, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38 }}
+      data-ink={floatInk}
+      use:glass={{ blur: 28, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38 }}
       transition:fade={{ duration: 200 }}
     >
       <SolariumQueue variant="float" />
@@ -246,7 +313,7 @@
       class="view-toggle"
       role="group"
       aria-label="Layout"
-      use:glass={{ blur: 18, saturate: 1.6, bezel: 12, strength: 22 }}
+      use:glass={{ blur: 12, saturate: 1.6, bezel: 12, strength: 22 }}
       transition:fade={{ duration: 160 }}
     >
       <button
@@ -280,238 +347,247 @@
         <ImmersiveIcon name="lyrics" size={17} />
       </button>
     </div>
+  {/if}
 
-    <div
-      class="transport"
-      use:glass={{ blur: 18, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26 }}
-      transition:fade={{ duration: 180 }}
-    >
-      <div class="left-cluster">
-        <button
-          class="ctl secondary"
-          class:on={player.shuffled}
-          title="Shuffle"
-          aria-label="Shuffle"
-          aria-pressed={player.shuffled}
-          onclick={() => player.toggleShuffle()}
-        >
-          <ImmersiveIcon name="shuffle" size={17} />
-        </button>
-        <button class="ctl" title="Previous" aria-label="Previous" onclick={() => player.prev()}>
-          <ImmersiveIcon name="previous" size={19} />
-        </button>
-        <button
-          class="ctl play"
-          title={player.playing ? "Pause" : "Play"}
-          aria-label={player.playing ? "Pause" : "Play"}
-          onclick={() => player.togglePlay()}
-        >
-          <ImmersiveIcon name={player.playing ? "pause" : "play"} size={22} />
-        </button>
-        <button class="ctl" title="Next" aria-label="Next" onclick={() => player.next()}>
-          <ImmersiveIcon name="next" size={19} />
-        </button>
-        <button
-          class="ctl secondary repeat"
-          class:on={player.repeat !== "off"}
-          title="Repeat"
-          aria-label="Repeat"
-          onclick={() => player.cycleRepeat()}
-        >
-          <ImmersiveIcon name="repeat" size={17} />
-          {#if player.repeat === "one"}<span class="repeat-one">1</span>{/if}
-        </button>
-        <span class="time">
-          {formatTime(pos)} / -{formatTime(Math.max(0, player.duration - pos))}
-        </span>
-      </div>
+  <!-- The dock stays through idle — it is the one thing you reach for from
+       across the room. Only the chrome around it sleeps. -->
+  <div
+    class="transport"
+    data-ink="light"
+    use:glass={{ blur: 10, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26 }}
+  >
+    <div class="left-cluster">
+      <button
+        class="ctl secondary"
+        class:on={player.shuffled}
+        title="Shuffle"
+        aria-label="Shuffle"
+        aria-pressed={player.shuffled}
+        onclick={() => player.toggleShuffle()}
+      >
+        <ImmersiveIcon name="shuffle" size={17} />
+      </button>
+      <button class="ctl" title="Previous" aria-label="Previous" onclick={() => player.prev()}>
+        <ImmersiveIcon name="previous" size={19} />
+      </button>
+      <button
+        class="ctl play"
+        title={player.playing ? "Pause" : "Play"}
+        aria-label={player.playing ? "Pause" : "Play"}
+        onclick={() => player.togglePlay()}
+      >
+        <ImmersiveIcon name={player.playing ? "pause" : "play"} size={22} />
+      </button>
+      <button class="ctl" title="Next" aria-label="Next" onclick={() => player.next()}>
+        <ImmersiveIcon name="next" size={19} />
+      </button>
+      <button
+        class="ctl secondary repeat"
+        class:on={player.repeat !== "off"}
+        title="Repeat"
+        aria-label="Repeat"
+        onclick={() => player.cycleRepeat()}
+      >
+        <ImmersiveIcon name="repeat" size={17} />
+        {#if player.repeat === "one"}<span class="repeat-one">1</span>{/if}
+      </button>
+      <span class="time">
+        {formatTime(pos)} / -{formatTime(Math.max(0, player.duration - pos))}
+      </span>
+    </div>
 
-      <!-- The inset card is the record on the deck: it names what is playing and
-           carries the progress of it, so the pill needs no separate readout. -->
-      <div class="now-card" style="--pct:{progress}%">
-        <div class="now-meta">
-          <div class="now-title">{player.current?.title ?? "Not Playing"}</div>
-          <div class="now-sub">
-            {#if player.current}
-              {player.current.album || "Single"} –
-              <ArtistLink artist={player.current.artist} />
-            {:else}
-              Nothing queued
-            {/if}
-          </div>
-        </div>
-        {#if player.current}
-          <div class="now-badges">
-            {#if player.speed !== 1}
-              <span class="now-badge" title="Playback speed">{speedLabel}</span>
-            {/if}
-            <button
-              class="now-star"
-              class:on={starred}
-              title={starred ? "Unpin song" : "Pin song"}
-              aria-label={starred ? "Unpin song" : "Pin song"}
-              aria-pressed={starred}
-              onclick={() => player.current && library.togglePin("song", player.current.path)}
-            >
-              <ImmersiveIcon name="star" size={13} />
-            </button>
-          </div>
-        {/if}
-        <div class="track" style="--pct:{progress}%">
-          <input
-            aria-label="Playback position"
-            type="range"
-            min="0"
-            max={player.duration || 0}
-            step="0.1"
-            value={pos}
-            oninput={onSeekInput}
-            onchange={onSeekCommit}
-            disabled={!player.loaded}
-          />
-        </div>
-      </div>
-
-      <div class="right-cluster">
-        <div
-          class="pop-wrap"
-          role="group"
-          aria-label="Volume"
-          onpointerenter={() => (volumeOpen = true)}
-          onpointerleave={() => (volumeOpen = false)}
-        >
-          <button
-            class="ctl secondary"
-            title="Volume"
-            aria-label="Volume"
-            onclick={() => (volumeOpen = !volumeOpen)}
-          >
-            <ImmersiveIcon name="volume" size={17} />
-          </button>
-          {#if volumeOpen}
-            <div
-              class="pop volume-pop"
-              use:glass={{ blur: 22, saturate: 1.6, bezel: 12, strength: 20 }}
-              transition:fade={{ duration: 120 }}
-            >
-              <div class="track volume" style="--pct:{volPct}%">
-                <input
-                  aria-label="Volume"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={player.volume}
-                  oninput={(e) => player.setVolume(+(e.target as HTMLInputElement).value)}
-                />
-              </div>
-            </div>
+    <!-- The inset card is the record on the deck: it names what is playing and
+         carries the progress of it, so the pill needs no separate readout. -->
+    <div class="now-card" style="--pct:{progress}%">
+      <div class="now-meta">
+        <div class="now-title">{player.current?.title ?? "Not Playing"}</div>
+        <div class="now-sub">
+          {#if player.current}
+            {player.current.album || "Single"} –
+            <ArtistLink artist={player.current.artist} />
+          {:else}
+            Nothing queued
           {/if}
         </div>
-        <button
-          class="ctl secondary"
-          class:on={ui.solQueue}
-          title="Queue"
-          aria-label="Queue"
-          aria-pressed={ui.solQueue}
-          onclick={toggleQueue}
-        >
-          <ImmersiveIcon name="queue" size={17} />
-        </button>
-        <button
-          class="ctl secondary"
-          class:on={ui.solLyrics}
-          title="Lyrics"
-          aria-label="Lyrics"
-          aria-pressed={ui.solLyrics}
-          onclick={toggleLyrics}
-        >
-          <ImmersiveIcon name="lyrics" size={17} />
-        </button>
-        <button
-          class="ctl secondary"
-          class:on={ui.browserOpen}
-          title="Browser"
-          aria-label="Library browser"
-          aria-pressed={ui.browserOpen}
-          onclick={() => ui.toggleBrowser()}
-        >
-          <ImmersiveIcon name="browser" size={17} />
-        </button>
-        <div
-          class="pop-wrap"
-          role="group"
-          aria-label="Playback speed"
-          onpointerenter={() => (speedOpen = true)}
-          onpointerleave={() => (speedOpen = false)}
-        >
-          <button
-            class="ctl secondary"
-            class:on={player.speed !== 1}
-            title="Playback speed"
-            aria-label="Playback speed"
-            aria-expanded={speedOpen}
-            onclick={() => (speedOpen = !speedOpen)}
-          >
-            <ImmersiveIcon name="gauge" size={17} />
-          </button>
-          {#if speedOpen}
-            <div
-              class="pop speed-pop"
-              use:glass={{ blur: 22, saturate: 1.6, bezel: 14, strength: 22 }}
-              transition:fade={{ duration: 120 }}
-            >
-              <div class="pop-head">
-                <span>Playback Speed</span>
-                <strong>{speedLabel}</strong>
-              </div>
-              <div class="track speed" style="--pct:{((player.speed - 0.5) / 1.5) * 100}%">
-                <input
-                  aria-label="Playback speed"
-                  type="range"
-                  min="0.5"
-                  max="2"
-                  step="0.05"
-                  value={player.speed}
-                  oninput={(e) => player.setSpeed(+(e.target as HTMLInputElement).value)}
-                />
-              </div>
-              <div class="chips">
-                {#each SPEEDS as s (s)}
-                  <button
-                    class="chip"
-                    class:on={player.speed === s}
-                    aria-pressed={player.speed === s}
-                    onclick={() => player.setSpeed(s)}
-                  >
-                    {speedText(s)}
-                  </button>
-                {/each}
-              </div>
-            </div>
+      </div>
+      {#if player.current}
+        <div class="now-badges">
+          {#if player.speed !== 1}
+            <span class="now-badge" title="Playback speed">{speedLabel}</span>
           {/if}
+          <button
+            class="now-star"
+            class:on={starred}
+            title={starred ? "Unpin song" : "Pin song"}
+            aria-label={starred ? "Unpin song" : "Pin song"}
+            aria-pressed={starred}
+            onclick={() => player.current && library.togglePin("song", player.current.path)}
+          >
+            <ImmersiveIcon name="star" size={13} />
+          </button>
         </div>
-        <button
-          class="ctl secondary"
-          title="Exit immersive mode"
-          aria-label="Exit immersive mode"
-          onclick={() => ui.exit()}
-        >
-          <ImmersiveIcon name="collapse" size={17} />
-        </button>
+      {/if}
+      <div class="track" style="--pct:{progress}%">
+        <input
+          aria-label="Playback position"
+          type="range"
+          min="0"
+          max={player.duration || 0}
+          step="0.1"
+          value={pos}
+          oninput={onSeekInput}
+          onchange={onSeekCommit}
+          disabled={!player.loaded}
+        />
       </div>
     </div>
 
+    <div class="right-cluster">
+      <div
+        class="pop-wrap"
+        role="group"
+        aria-label="Volume"
+        onpointerenter={() => (volumeOpen = true)}
+        onpointerleave={() => (volumeOpen = false)}
+      >
+        <button
+          class="ctl secondary"
+          title="Volume"
+          aria-label="Volume"
+          onclick={() => (volumeOpen = !volumeOpen)}
+        >
+          <ImmersiveIcon name="volume" size={17} />
+        </button>
+        {#if volumeOpen}
+          <div
+            class="pop volume-pop"
+            use:glass={{ blur: 14, saturate: 1.6, bezel: 12, strength: 20 }}
+            transition:fade={{ duration: 120 }}
+          >
+            <div class="track volume" style="--pct:{volPct}%">
+              <input
+                aria-label="Volume"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={player.volume}
+                oninput={(e) => player.setVolume(+(e.target as HTMLInputElement).value)}
+              />
+            </div>
+            <div class="pop-foot">{Math.round(volPct)}%</div>
+          </div>
+        {/if}
+      </div>
+      <button
+        class="ctl secondary"
+        class:on={ui.solQueue}
+        title="Queue"
+        aria-label="Queue"
+        aria-pressed={ui.solQueue}
+        onclick={toggleQueue}
+      >
+        <ImmersiveIcon name="queue" size={17} />
+      </button>
+      <button
+        class="ctl secondary"
+        class:on={ui.solLyrics}
+        title="Lyrics"
+        aria-label="Lyrics"
+        aria-pressed={ui.solLyrics}
+        onclick={toggleLyrics}
+      >
+        <ImmersiveIcon name="lyrics" size={17} />
+      </button>
+      <button
+        class="ctl secondary"
+        class:on={ui.browserOpen}
+        title="Browser"
+        aria-label="Library browser"
+        aria-pressed={ui.browserOpen}
+        onclick={() => ui.toggleBrowser()}
+      >
+        <ImmersiveIcon name="browser" size={17} />
+      </button>
+      <div
+        class="pop-wrap"
+        role="group"
+        aria-label="Playback speed"
+        onpointerenter={() => (speedOpen = true)}
+        onpointerleave={() => (speedOpen = false)}
+      >
+        <button
+          class="ctl secondary"
+          class:on={player.speed !== 1}
+          title="Playback speed"
+          aria-label="Playback speed"
+          aria-expanded={speedOpen}
+          onclick={() => (speedOpen = !speedOpen)}
+        >
+          <ImmersiveIcon name="gauge" size={17} />
+        </button>
+        {#if speedOpen}
+          <div
+            class="pop speed-pop"
+            use:glass={{ blur: 14, saturate: 1.6, bezel: 14, strength: 22 }}
+            transition:fade={{ duration: 120 }}
+          >
+            <div class="pop-head">
+              <span>Playback Speed</span>
+              <strong>{speedLabel}</strong>
+            </div>
+            <div class="track speed" style="--pct:{((player.speed - 0.5) / 1.5) * 100}%">
+              <input
+                aria-label="Playback speed"
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.05"
+                value={player.speed}
+                oninput={(e) => player.setSpeed(+(e.target as HTMLInputElement).value)}
+              />
+            </div>
+            <div class="chips">
+              {#each SPEEDS as s (s)}
+                <button
+                  class="chip"
+                  class:on={player.speed === s}
+                  aria-pressed={player.speed === s}
+                  onclick={() => player.setSpeed(s)}
+                >
+                  {speedText(s)}
+                </button>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
+      <button
+        class="ctl secondary"
+        title="Exit immersive mode"
+        aria-label="Exit immersive mode"
+        onclick={() => ui.exit()}
+      >
+        <ImmersiveIcon name="collapse" size={17} />
+      </button>
+    </div>
+  </div>
+
+  {#if !idle}
     <button
       class="gear"
       title="Appearance"
       aria-label="Appearance"
-      use:glass={{ blur: 18, saturate: 1.6, bezel: 14, strength: 22 }}
+      use:glass={{ blur: 12, saturate: 1.6, bezel: 14, strength: 22 }}
       onclick={() => onappearance()}
       transition:fade={{ duration: 160 }}
     >
       <ImmersiveIcon name="gear" size={19} />
     </button>
+  {/if}
+
+  {#if ui.browserOpen}
+    <ImmersiveBrowser />
   {/if}
 </div>
 
@@ -537,15 +613,25 @@
         rgba(255, 255, 255, 0.04)
       ),
       rgba(16, 8, 14, 0.24);
-    --sol-hairline: rgba(255, 255, 255, 0.22);
-    /* The bright lip along the top-left edge and the shadow under the bottom
-       one — the two highlights that make a slab of glass read as having a
-       thickness. */
+    /* The edges carry the record's colour: the hairline is the cover's light
+       accent lifted toward white, and the lip along the top-left edge is the
+       same light caught on the rim. Together with the dispersion in the
+       backdrop filter (see liquidGlass.ts) that is what makes an edge read as
+       the edge of tinted glass rather than a white outline. */
+    --sol-edge: color-mix(in srgb, var(--sol-light, #fff) 62%, rgba(255, 255, 255, 0.9));
+    --sol-hairline: color-mix(in srgb, var(--sol-edge) 46%, transparent);
     --sol-rim:
-      inset 0 1px 0 rgba(255, 255, 255, 0.34),
-      inset 1px 0 0 rgba(255, 255, 255, 0.14),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.12),
-      inset -1px 0 0 rgba(0, 0, 0, 0.06);
+      inset 0 1px 0 color-mix(in srgb, var(--sol-edge) 58%, transparent),
+      inset 1px 0 0 color-mix(in srgb, var(--sol-edge) 26%, transparent),
+      inset 0 -1px 0 color-mix(in srgb, var(--sol-deep, #000) 30%, transparent),
+      inset -1px 0 0 color-mix(in srgb, var(--sol-deep, #000) 14%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--sol-primary, #fff) 18%, transparent);
+    /* Ink over glass. Panes set `data-ink` from the cover under them; the
+       rules below turn that into a colour and its muted/faint tints. */
+    --sol-ink-rgb: 255 255 255;
+    --sol-ink: rgb(var(--sol-ink-rgb));
+    --sol-ink-muted: rgb(var(--sol-ink-rgb) / 0.72);
+    --sol-ink-faint: rgb(var(--sol-ink-rgb) / 0.5);
     position: fixed;
     inset: 0;
     width: 100vw;
@@ -566,6 +652,17 @@
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+  }
+  /* Black on a pale record, white on a dark one. `--sol-ink` is what every
+     piece of type in a pane is set in, so flipping it here flips them all. */
+  [data-ink="dark"] {
+    --sol-ink-rgb: 18 10 16;
+    --sol-ink-muted: rgb(var(--sol-ink-rgb) / 0.66);
+    --sol-ink-faint: rgb(var(--sol-ink-rgb) / 0.42);
+    color: var(--sol-ink);
+  }
+  [data-ink="light"] {
+    color: var(--sol-ink);
   }
 
   /* The stage is the whole window, and it is the *window* the frame is sized
@@ -659,7 +756,7 @@
     background: var(--sol-glass);
     /* Baseline frosting; `use:glass` replaces this inline with the same blur
        plus the refracting rim, and if it can't, this is what you get. */
-    backdrop-filter: blur(36px) saturate(1.7) brightness(0.98);
+    backdrop-filter: blur(24px) saturate(1.7) brightness(0.98);
     box-shadow:
       var(--sol-rim),
       0 30px 80px rgba(10, 3, 8, 0.28);
@@ -680,7 +777,7 @@
     bottom: 118px;
     transform: translateX(-50%);
     width: min(560px, 90vw);
-    backdrop-filter: blur(40px) saturate(1.7) brightness(0.9);
+    backdrop-filter: blur(28px) saturate(1.7) brightness(0.9);
   }
 
   .lyrics-card :global(.lyrics) {
@@ -702,7 +799,7 @@
     padding: 2px 6px;
     font-size: clamp(26px, 1.95vw, 40px);
     line-height: 1.24;
-    color: #fff;
+    color: var(--sol-ink);
     --lyric-dim: 0.4;
     --lyric-past: 0;
     --lyric-past-hover: 0.22;
@@ -717,11 +814,15 @@
     transform-origin: left center;
   }
   .lyrics-card :global(.line.active) {
-    color: #fff;
+    color: var(--sol-ink);
     transform: none;
   }
   .lyrics-card :global(.line:hover) {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgb(var(--sol-ink-rgb) / 0.08);
+  }
+  /* The glow is a white bloom; on dark ink it would halo the letters grey. */
+  .lyrics-card[data-ink="dark"] :global(.line) {
+    --lyric-glow: none;
   }
 
   .compact-slot {
@@ -731,11 +832,7 @@
     bottom: 26px;
     transform: translateX(-50%);
     width: min(760px, 82vw);
-    transition: bottom 300ms var(--motion-spring);
-  }
-  /* Steps up over the transport when the transport is on screen, and drops back
-     into its place when the chrome fades out. */
-  .compact-slot.raised {
+    /* Above the dock, which never leaves. */
     bottom: 108px;
   }
 
@@ -758,7 +855,7 @@
     border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(18px) saturate(1.6);
+    backdrop-filter: blur(12px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 12px 34px rgba(12, 4, 10, 0.24);
@@ -797,7 +894,7 @@
     border-radius: 26px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(18px) saturate(1.6) brightness(1.02);
+    backdrop-filter: blur(10px) saturate(1.6) brightness(1.02);
     box-shadow:
       var(--sol-rim),
       0 20px 54px rgba(12, 4, 10, 0.3);
@@ -989,7 +1086,7 @@
     border-radius: 18px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass-strong);
-    backdrop-filter: blur(22px) saturate(1.6);
+    backdrop-filter: blur(14px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 16px 40px rgba(10, 3, 8, 0.34);
@@ -1007,8 +1104,16 @@
     width: 130px;
   }
   .speed-pop {
-    width: 236px;
+    width: 268px;
     padding: 12px 14px 12px;
+  }
+  .pop-foot {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    color: rgba(255, 255, 255, 0.86);
   }
   .pop-head {
     display: flex;
@@ -1026,13 +1131,15 @@
     font-variant-numeric: tabular-nums;
   }
   .chips {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 4px;
     margin-top: 12px;
   }
   .chip {
-    flex: 1;
+    min-width: 0;
     height: 26px;
+    padding: 0;
     border-radius: 999px;
     font-size: 11px;
     font-weight: 750;
@@ -1064,7 +1171,7 @@
     color: rgba(255, 255, 255, 0.85);
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(18px) saturate(1.6);
+    backdrop-filter: blur(12px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 14px 36px rgba(12, 4, 10, 0.26);

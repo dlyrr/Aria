@@ -29,7 +29,7 @@
 {#if synced}
   <div
     class="compact-lyrics"
-    use:glass={{ blur: 26, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28 }}
+    use:glass={{ blur: 16, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28 }}
   >
     <div class="now-line" class:waiting={!current}>
       {#if current?.words?.length}
@@ -55,7 +55,7 @@
     border: 1px solid var(--sol-hairline, rgba(255, 255, 255, 0.24));
     /* Same glass as the rest of Solarium — see `.solarium` for the recipe. */
     background: var(--sol-glass, rgba(255, 255, 255, 0.1));
-    backdrop-filter: blur(26px) saturate(1.7) brightness(1.02);
+    backdrop-filter: blur(16px) saturate(1.7) brightness(1.02);
     box-shadow:
       var(--sol-rim, inset 0 1px 0 rgba(255, 255, 255, 0.3)),
       0 20px 50px rgba(10, 3, 8, 0.28);
@@ -66,8 +66,8 @@
     font-size: clamp(18px, 1.45vw, 25px);
     font-weight: 700;
     line-height: 1.28;
-    color: #fff;
-    text-shadow: 0 0 22px rgba(255, 255, 255, 0.28);
+    color: var(--sol-ink, #fff);
+    text-shadow: 0 0 22px rgb(var(--sol-ink-rgb, 255 255 255) / 0.22);
   }
   /* Before the first line lands there is nothing to light, so the bar shows the
      upcoming line alone rather than an empty box. */
@@ -79,7 +79,7 @@
     font-size: clamp(13px, 1vw, 16px);
     font-weight: 620;
     line-height: 1.3;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--sol-ink-faint, rgba(255, 255, 255, 0.5));
   }
 
   /* Same two-copy karaoke fill as the panel, minus the glow wrapper: at this

@@ -148,7 +148,7 @@
     grid-template-rows: auto minmax(0, 1fr);
     height: 100%;
     min-height: 0;
-    color: rgba(255, 255, 255, 0.94);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.94);
   }
   .pills {
     display: flex;
@@ -167,9 +167,9 @@
     border-radius: 999px;
     font-size: 12.5px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.92);
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.92);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.12);
+    box-shadow: inset 0 1px 0 rgb(var(--sol-ink-rgb, 255 255 255) / 0.22);
   }
   .icon-pill {
     padding: 0 12px;
@@ -185,16 +185,16 @@
     border-radius: 999px;
     display: grid;
     place-items: center;
-    color: rgba(255, 255, 255, 0.72);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.72);
     transition: background 140ms ease, color 140ms ease;
   }
   .group button:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.14);
+    color: var(--sol-ink, #fff);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.14);
   }
   .group button.on {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.22);
+    color: var(--sol-ink, #fff);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.22);
   }
   .one {
     position: absolute;
@@ -208,6 +208,9 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.34),
       0 8px 22px rgba(255, 60, 110, 0.32);
+    color: #fff;
+  }
+  .pill.time :global(svg) {
     color: #fff;
   }
   .pill.time strong {
@@ -232,7 +235,7 @@
     overflow-y: auto;
     padding: 12px 22px 22px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+    scrollbar-color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.28) transparent;
   }
   .heading {
     display: flex;
@@ -257,8 +260,8 @@
     border-radius: 999px;
     font-size: 11.5px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.12);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.85);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.12);
   }
   .row {
     width: 100%;
@@ -266,23 +269,23 @@
     align-items: center;
     gap: 12px;
     padding: 8px 8px;
-    color: #fff;
+    color: var(--sol-ink, #fff);
     text-align: left;
     border-radius: 12px;
     transition: background 150ms ease, transform 220ms var(--motion-spring);
   }
   .row.now {
-    background: rgba(255, 255, 255, 0.1);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.1);
+    box-shadow: inset 0 1px 0 rgb(var(--sol-ink-rgb, 255 255 255) / 0.14);
     padding: 9px 10px;
   }
   .row:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.15);
     transform: translateX(2px);
   }
   .list .row {
     border-radius: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgb(var(--sol-ink-rgb, 255 255 255) / 0.1);
   }
   .list .row:hover {
     border-radius: 12px;
@@ -294,7 +297,7 @@
     flex: none;
     object-fit: cover;
     border-radius: 7px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgb(var(--sol-ink-rgb, 255 255 255) / 0.1);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
   }
   img.empty {
@@ -315,7 +318,7 @@
   }
   .meta small {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.72);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.72);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -325,7 +328,7 @@
     align-items: flex-start;
     gap: 10px;
     margin: 22px 4px 8px;
-    color: rgba(255, 255, 255, 0.92);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.92);
   }
   .autoplay h2 {
     margin: 0 0 2px;
@@ -333,15 +336,15 @@
   .autoplay p {
     margin: 0;
     font-size: 12.5px;
-    color: rgba(255, 255, 255, 0.72);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.72);
   }
   .empty {
     margin: 12px 8px;
     font-size: 12.5px;
-    color: rgba(255, 255, 255, 0.66);
+    color: rgb(var(--sol-ink-rgb, 255 255 255) / 0.66);
   }
   button:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.9);
+    outline: 2px solid rgb(var(--sol-ink-rgb, 255 255 255) / 0.9);
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {

@@ -21,6 +21,13 @@ export interface GlassOptions {
   bezel?: number;
   /** Peak displacement at the very edge, px. */
   strength?: number;
+  /**
+   * How far the three colour channels are bent apart at the rim, as a fraction
+   * of `strength`. Real glass disperses: the edge of a lens fringes into
+   * colour, and that fringe is what makes the rim read as glass and not as
+   * a bevel. 0 turns it off.
+   */
+  dispersion?: number;
 }
 
 const DEFAULTS: Required<GlassOptions> = {
@@ -29,6 +36,7 @@ const DEFAULTS: Required<GlassOptions> = {
   brightness: 1,
   bezel: 22,
   strength: 34,
+  dispersion: 0.12,
 };
 
 const NS = "http://www.w3.org/2000/svg";
@@ -137,7 +145,8 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
 
   let filter: SVGFilterElement | null = null;
   let feImage: SVGFEImageElement | null = null;
-  let feMap: SVGFEDisplacementMapElement | null = null;
+  /** One displacement per channel — red bent least, blue most. */
+  let feMaps: SVGFEDisplacementMapElement[] = [];
   let lastKey = "";
   let raf = 0;
 
@@ -153,12 +162,42 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
     feImage = document.createElementNS(NS, "feImage");
     feImage.setAttribute("preserveAspectRatio", "none");
     feImage.setAttribute("result", "map");
-    feMap = document.createElementNS(NS, "feDisplacementMap");
-    feMap.setAttribute("in", "SourceGraphic");
-    feMap.setAttribute("in2", "map");
-    feMap.setAttribute("xChannelSelector", "R");
-    feMap.setAttribute("yChannelSelector", "G");
-    filter.append(feImage, feMap);
+    filter.append(feImage);
+    // Bend the backdrop three times, keep one channel of each, add them back
+    // together. In the flat middle all three land on the same pixel and the
+    // sum is the original; at the rim they part and the edge fringes.
+    const keep = ["1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0",
+                  "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0",
+                  "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"];
+    feMaps = keep.map((values, i) => {
+      const map = document.createElementNS(NS, "feDisplacementMap");
+      map.setAttribute("in", "SourceGraphic");
+      map.setAttribute("in2", "map");
+      map.setAttribute("xChannelSelector", "R");
+      map.setAttribute("yChannelSelector", "G");
+      map.setAttribute("result", `bent${i}`);
+      const channel = document.createElementNS(NS, "feColorMatrix");
+      channel.setAttribute("in", `bent${i}`);
+      channel.setAttribute("type", "matrix");
+      channel.setAttribute("values", values);
+      channel.setAttribute("result", `ch${i}`);
+      filter!.append(map, channel);
+      return map;
+    });
+    const sum01 = document.createElementNS(NS, "feComposite");
+    sum01.setAttribute("in", "ch0");
+    sum01.setAttribute("in2", "ch1");
+    sum01.setAttribute("operator", "arithmetic");
+    sum01.setAttribute("k2", "1");
+    sum01.setAttribute("k3", "1");
+    sum01.setAttribute("result", "ch01");
+    const sum = document.createElementNS(NS, "feComposite");
+    sum.setAttribute("in", "ch01");
+    sum.setAttribute("in2", "ch2");
+    sum.setAttribute("operator", "arithmetic");
+    sum.setAttribute("k2", "1");
+    sum.setAttribute("k3", "1");
+    filter.append(sum01, sum);
     svg.appendChild(filter);
   }
 
@@ -186,7 +225,10 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
       feImage!.setAttribute("height", String(h));
       feImage!.setAttribute("href", url);
     }
-    feMap!.setAttribute("scale", String(opts.strength));
+    const spread = opts.strength * opts.dispersion;
+    feMaps[0].setAttribute("scale", String(opts.strength - spread));
+    feMaps[1].setAttribute("scale", String(opts.strength));
+    feMaps[2].setAttribute("scale", String(opts.strength + spread));
     const value = `blur(${opts.blur}px) saturate(${opts.saturate}) brightness(${opts.brightness}) url(#${id})`;
     node.style.backdropFilter = value;
     // Some engines still want the prefix to accept url() here.
