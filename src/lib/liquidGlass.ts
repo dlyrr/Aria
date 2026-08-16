@@ -36,6 +36,13 @@ export interface GlassOptions {
   dispersion?: number;
   /** Width of the live-coloured hairline at the edge, px. 0 for none. */
   rim?: number;
+  /**
+   * Whole-pane magnification, as a fraction of the distance from the centre:
+   * 0.05 samples the backdrop 5% closer in at the edges than it really is, so
+   * anything crossing the pane's boundary steps sideways as it enters. This is
+   * the body of the glass, where `strength` is only its rim.
+   */
+  lens?: number;
 }
 
 const DEFAULTS: Required<GlassOptions> = {
@@ -46,6 +53,7 @@ const DEFAULTS: Required<GlassOptions> = {
   strength: 34,
   dispersion: 0.12,
   rim: 1.5,
+  lens: 0.05,
 };
 
 const NS = "http://www.w3.org/2000/svg";
@@ -77,17 +85,40 @@ const supported = (() => {
 
 /**
  * Draws the displacement map for a `w`×`h` rounded rectangle with corner
- * radius `r`: red is X, green is Y, 128 is "leave this pixel alone". Inside the
- * rim the map points toward the centre, hardest at the very edge and easing to
- * nothing `bezel` px in — a quarter-circle profile, so the middle of the pane
- * is flat glass and only the edge behaves like a lens.
+ * radius `r`: red is X, green is Y, 128 is "leave this pixel alone".
+ *
+ * Two things are written into it. The rim points toward the centre, hardest at
+ * the very edge and easing to nothing `bezel` px in — a quarter-circle
+ * profile, so the edge behaves like the thick lip of a lens. Over the whole
+ * pane there is also a gentle magnification: every pixel samples slightly
+ * closer to the centre than it sits, by `lens` of its distance from it. That
+ * is the straw-in-a-glass effect — a line crossing the pane's edge comes out
+ * the other side offset, because the glass is bending everything behind it and
+ * not only the bit near the rim.
+ *
+ * Returns the map and the displacement (px) that a full-strength channel
+ * stands for; the caller feeds that to feDisplacementMap's `scale`.
  */
-function drawMap(w: number, h: number, r: number, bezel: number): string | null {
-  const scale = Math.min(1, MAP_MAX / Math.max(w, h));
-  const mw = Math.max(2, Math.round(w * scale));
-  const mh = Math.max(2, Math.round(h * scale));
-  const rr = Math.min(r * scale, mw / 2, mh / 2);
-  const bz = Math.max(1, bezel * scale);
+function drawMap(
+  w: number,
+  h: number,
+  r: number,
+  bezel: number,
+  strength: number,
+  lens: number,
+): { url: string; scale: number } | null {
+  const shrink = Math.min(1, MAP_MAX / Math.max(w, h));
+  const mw = Math.max(2, Math.round(w * shrink));
+  const mh = Math.max(2, Math.round(h * shrink));
+
+  // Everything below is in element pixels, which is what `scale` is in too.
+  const hw = w / 2;
+  const hh = h / 2;
+  const rr = Math.min(r, hw, hh);
+  const bz = Math.max(1, bezel);
+  // One scale has to cover the largest vector in the map: the rim's, or the
+  // lens's at the far corner, whichever is bigger.
+  const scale = Math.max(1, strength, Math.max(hw, hh) * lens);
 
   const canvas = document.createElement("canvas");
   canvas.width = mw;
@@ -96,16 +127,15 @@ function drawMap(w: number, h: number, r: number, bezel: number): string | null 
   if (!ctx) return null;
   const image = ctx.createImageData(mw, mh);
   const px = image.data;
-  const hw = mw / 2;
-  const hh = mh / 2;
+  const clamp = (v: number) => Math.max(-1, Math.min(1, v));
 
   for (let y = 0; y < mh; y++) {
-    const py = y + 0.5 - hh;
-    const ay = Math.abs(py);
+    const ey = ((y + 0.5) / mh) * h - hh;
+    const ay = Math.abs(ey);
     const qy = ay - (hh - rr);
     for (let x = 0; x < mw; x++) {
-      const pxx = x + 0.5 - hw;
-      const ax = Math.abs(pxx);
+      const ex = ((x + 0.5) / mw) * w - hw;
+      const ax = Math.abs(ex);
       const qx = ax - (hw - rr);
 
       // Rounded-rectangle signed distance (negative inside), and its normal.
@@ -129,18 +159,20 @@ function drawMap(w: number, h: number, r: number, bezel: number): string | null 
       // Lens profile: nearly nothing until the last third of the rim, then it
       // dives. Linear reads as a bevel, not a curve.
       const m = t > 0 ? 1 - Math.sqrt(Math.max(0, 1 - t * t)) : 0;
-      const dx = -nx * Math.sign(pxx || 1) * m;
-      const dy = -ny * Math.sign(py || 1) * m;
+      // Both vectors point inward, so the filter only ever samples from
+      // further inside the backdrop — never off the edge of it.
+      const dx = -nx * Math.sign(ex || 1) * m * strength - ex * lens;
+      const dy = -ny * Math.sign(ey || 1) * m * strength - ey * lens;
 
       const i = (y * mw + x) * 4;
-      px[i] = Math.round(128 + dx * 127);
-      px[i + 1] = Math.round(128 + dy * 127);
+      px[i] = Math.round(128 + clamp(dx / scale) * 127);
+      px[i + 1] = Math.round(128 + clamp(dy / scale) * 127);
       px[i + 2] = 128;
       px[i + 3] = 255;
     }
   }
   ctx.putImageData(image, 0, 0);
-  return canvas.toDataURL("image/png");
+  return { url: canvas.toDataURL("image/png"), scale };
 }
 
 function cornerRadius(node: HTMLElement): number {
@@ -207,6 +239,8 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
   /** One displacement per channel — red bent least, blue most. */
   let feMaps: SVGFEDisplacementMapElement[] = [];
   let lastKey = "";
+  /** Displacement (px) a full-strength channel stands for in the current map. */
+  let mapScale = opts.strength;
   let raf = 0;
 
   function ensureFilter() {
@@ -268,12 +302,13 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
     const h = Math.round(node.offsetHeight);
     if (w < 4 || h < 4) return;
     const r = cornerRadius(node);
-    const key = `${w}x${h}r${r}b${opts.bezel}`;
+    const key = `${w}x${h}r${r}b${opts.bezel}s${opts.strength}l${opts.lens}`;
     ensureFilter();
     if (key !== lastKey) {
-      const url = drawMap(w, h, r, opts.bezel);
-      if (!url) return;
+      const map = drawMap(w, h, r, opts.bezel, opts.strength, opts.lens);
+      if (!map) return;
       lastKey = key;
+      mapScale = map.scale;
       const size = String(w);
       filter!.setAttribute("x", "0");
       filter!.setAttribute("y", "0");
@@ -283,12 +318,14 @@ export function glass(node: HTMLElement, options: GlassOptions = {}) {
       feImage!.setAttribute("y", "0");
       feImage!.setAttribute("width", size);
       feImage!.setAttribute("height", String(h));
-      feImage!.setAttribute("href", url);
+      feImage!.setAttribute("href", map.url);
     }
-    const spread = opts.strength * opts.dispersion;
-    feMaps[0].setAttribute("scale", String(opts.strength - spread));
-    feMaps[1].setAttribute("scale", String(opts.strength));
-    feMaps[2].setAttribute("scale", String(opts.strength + spread));
+    // The map is normalised to `mapScale`, so that is what the middle channel
+    // is bent by; the outer two are pulled either side of it to disperse.
+    const spread = mapScale * opts.dispersion;
+    feMaps[0].setAttribute("scale", String(mapScale - spread));
+    feMaps[1].setAttribute("scale", String(mapScale));
+    feMaps[2].setAttribute("scale", String(mapScale + spread));
     const value = `blur(${opts.blur}px) saturate(${opts.saturate}) brightness(${opts.brightness}) url(#${id})`;
     node.style.backdropFilter = value;
     // Some engines still want the prefix to accept url() here.

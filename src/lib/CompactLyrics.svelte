@@ -34,7 +34,7 @@
 {#if synced}
   <div
     class="compact-lyrics"
-    use:glass={{ blur: 16, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28 }}
+    use:glass={{ blur: 11, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28, lens: 0.06 }}
   >
     <!-- Keyed on the line index: a new line rises in as the old one sinks
          out. Both live in the same grid cell, so the bar doesn't jump while
@@ -78,7 +78,7 @@
     border: 1px solid var(--sol-hairline, rgba(255, 255, 255, 0.24));
     /* Same glass as the rest of Solarium — see `.solarium` for the recipe. */
     background: var(--sol-glass, rgba(255, 255, 255, 0.1));
-    backdrop-filter: blur(16px) saturate(1.7) brightness(1.02);
+    backdrop-filter: blur(11px) saturate(1.7) brightness(1.02);
     box-shadow:
       var(--sol-rim, inset 0 1px 0 rgba(255, 255, 255, 0.3)),
       0 20px 50px rgba(10, 3, 8, 0.28);

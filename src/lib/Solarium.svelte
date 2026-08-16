@@ -278,7 +278,7 @@
             class="card lyrics-card"
             aria-label="Lyrics"
             data-ink={sideInk}
-            use:glass={{ blur: 24, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40 }}
+            use:glass={{ blur: 16, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40, lens: 0.055 }}
             transition:fade={{ duration: 220 }}
           >
             <LyricsPanel />
@@ -289,7 +289,7 @@
             class="card queue-card"
             aria-label="Play queue"
             data-ink={sideInk}
-            use:glass={{ blur: 24, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40 }}
+            use:glass={{ blur: 16, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40, lens: 0.055 }}
             transition:fade={{ duration: 220 }}
           >
             <SolariumQueue variant="side" />
@@ -313,7 +313,7 @@
       aria-label="Play queue"
       style="left:{freeW / 2}px"
       data-ink={floatInk}
-      use:glass={{ blur: 28, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38 }}
+      use:glass={{ blur: 18, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38, lens: 0.055 }}
       transition:fade={{ duration: 200 }}
     >
       <SolariumQueue variant="float" />
@@ -329,7 +329,7 @@
       class="view-toggle"
       role="group"
       aria-label="Layout"
-      use:glass={{ blur: 12, saturate: 1.6, bezel: 12, strength: 22 }}
+      use:glass={{ blur: 8, saturate: 1.6, bezel: 12, strength: 22, lens: 0.07 }}
       transition:fade={{ duration: 160 }}
     >
       <button
@@ -342,7 +342,7 @@
           wake(true);
         }}
       >
-        <ImmersiveIcon name="sidebar" size={17} />
+        <ImmersiveIcon name="sidebar" size={16} />
       </button>
       <button
         class:selected={ui.solQueue}
@@ -351,7 +351,7 @@
         aria-pressed={ui.solQueue}
         onclick={toggleQueue}
       >
-        <ImmersiveIcon name="queue" size={17} />
+        <ImmersiveIcon name="queue" size={16} />
       </button>
       <button
         class:selected={ui.solLyrics}
@@ -360,7 +360,7 @@
         aria-pressed={ui.solLyrics}
         onclick={toggleLyrics}
       >
-        <ImmersiveIcon name="lyrics" size={17} />
+        <ImmersiveIcon name="lyrics" size={16} />
       </button>
     </div>
   {/if}
@@ -370,7 +370,7 @@
   <div
     class="transport"
     data-ink="light"
-    use:glass={{ blur: 10, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26 }}
+    use:glass={{ blur: 6, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26, lens: 0.05 }}
   >
     <div class="left-cluster">
       <button
@@ -381,10 +381,10 @@
         aria-pressed={player.shuffled}
         onclick={() => player.toggleShuffle()}
       >
-        <ImmersiveIcon name="shuffle" size={17} />
+        <ImmersiveIcon name="shuffle" size={16} />
       </button>
       <button class="ctl" title="Previous" aria-label="Previous" onclick={() => player.prev()}>
-        <ImmersiveIcon name="previous" size={19} />
+        <ImmersiveIcon name="previous" size={18} />
       </button>
       <button
         class="ctl play"
@@ -392,10 +392,10 @@
         aria-label={player.playing ? "Pause" : "Play"}
         onclick={() => player.togglePlay()}
       >
-        <ImmersiveIcon name={player.playing ? "pause" : "play"} size={22} />
+        <ImmersiveIcon name={player.playing ? "pause" : "play"} size={20} />
       </button>
       <button class="ctl" title="Next" aria-label="Next" onclick={() => player.next()}>
-        <ImmersiveIcon name="next" size={19} />
+        <ImmersiveIcon name="next" size={18} />
       </button>
       <button
         class="ctl secondary repeat"
@@ -404,7 +404,7 @@
         aria-label="Repeat"
         onclick={() => player.cycleRepeat()}
       >
-        <ImmersiveIcon name="repeat" size={17} />
+        <ImmersiveIcon name="repeat" size={16} />
         {#if player.repeat === "one"}<span class="repeat-one">1</span>{/if}
       </button>
       <span class="time">
@@ -476,12 +476,12 @@
           aria-label="Volume"
           onclick={() => (volumeOpen = !volumeOpen)}
         >
-          <ImmersiveIcon name="volume" size={17} />
+          <ImmersiveIcon name="volume" size={16} />
         </button>
         {#if volumeOpen}
           <div
             class="pop volume-pop"
-            use:glass={{ blur: 14, saturate: 1.6, bezel: 12, strength: 20 }}
+            use:glass={{ blur: 9, saturate: 1.6, bezel: 12, strength: 20, lens: 0.07 }}
             transition:fade={{ duration: 120 }}
           >
             <div class="track volume" style="--pct:{volPct}%">
@@ -507,7 +507,7 @@
         aria-pressed={ui.solQueue}
         onclick={toggleQueue}
       >
-        <ImmersiveIcon name="queue" size={17} />
+        <ImmersiveIcon name="queue" size={16} />
       </button>
       <button
         class="ctl secondary"
@@ -517,7 +517,7 @@
         aria-pressed={ui.solLyrics}
         onclick={toggleLyrics}
       >
-        <ImmersiveIcon name="lyrics" size={17} />
+        <ImmersiveIcon name="lyrics" size={16} />
       </button>
       <button
         class="ctl secondary"
@@ -527,7 +527,7 @@
         aria-pressed={ui.browserOpen}
         onclick={() => ui.toggleBrowser()}
       >
-        <ImmersiveIcon name="browser" size={17} />
+        <ImmersiveIcon name="browser" size={16} />
       </button>
       <div
         class="pop-wrap"
@@ -544,12 +544,12 @@
           aria-expanded={speedOpen}
           onclick={() => (speedOpen = !speedOpen)}
         >
-          <ImmersiveIcon name="gauge" size={17} />
+          <ImmersiveIcon name="gauge" size={16} />
         </button>
         {#if speedOpen}
           <div
             class="pop speed-pop"
-            use:glass={{ blur: 14, saturate: 1.6, bezel: 14, strength: 22 }}
+            use:glass={{ blur: 9, saturate: 1.6, bezel: 14, strength: 22, lens: 0.07 }}
             transition:fade={{ duration: 120 }}
           >
             <div class="pop-head">
@@ -588,7 +588,7 @@
         aria-label="Exit immersive mode"
         onclick={() => ui.exit()}
       >
-        <ImmersiveIcon name="collapse" size={17} />
+        <ImmersiveIcon name="collapse" size={16} />
       </button>
     </div>
   </div>
@@ -778,7 +778,7 @@
     background: var(--sol-glass);
     /* Baseline frosting; `use:glass` replaces this inline with the same blur
        plus the refracting rim, and if it can't, this is what you get. */
-    backdrop-filter: blur(24px) saturate(1.7) brightness(0.98);
+    backdrop-filter: blur(16px) saturate(1.7) brightness(0.98);
     box-shadow:
       var(--sol-rim),
       0 30px 80px rgba(10, 3, 8, 0.28);
@@ -799,7 +799,7 @@
     bottom: 118px;
     transform: translateX(-50%);
     width: min(560px, 90vw);
-    backdrop-filter: blur(28px) saturate(1.7) brightness(0.9);
+    backdrop-filter: blur(18px) saturate(1.7) brightness(0.9);
   }
 
   .lyrics-card :global(.lyrics) {
@@ -877,7 +877,7 @@
     border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(12px) saturate(1.6);
+    backdrop-filter: blur(8px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 12px 34px rgba(12, 4, 10, 0.24);
@@ -910,12 +910,12 @@
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 16px;
-    padding: 8px 12px 8px 16px;
+    gap: 12px;
+    padding: 5px 10px 5px 14px;
     border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(10px) saturate(1.6) brightness(1.02);
+    backdrop-filter: blur(6px) saturate(1.6) brightness(1.02);
     box-shadow:
       var(--sol-rim),
       0 20px 54px rgba(12, 4, 10, 0.3);
@@ -931,8 +931,8 @@
     justify-content: flex-end;
   }
   .ctl {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     color: #fff;
     display: grid;
@@ -981,8 +981,8 @@
     gap: 10px;
     width: clamp(300px, 34vw, 480px);
     min-width: 0;
-    padding: 6px 12px 9px 18px;
-    border-radius: 18px;
+    padding: 4px 10px 8px 15px;
+    border-radius: 15px;
     overflow: hidden;
     /* The one dark thing on the pill: the record sits *in* the glass, so it's
        cut deeper than the surface around it. */
@@ -997,14 +997,14 @@
     text-align: left;
   }
   .now-title {
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .now-sub {
-    font-size: 11.5px;
+    font-size: 11px;
     color: var(--sol-muted);
     white-space: nowrap;
     overflow: hidden;
@@ -1120,7 +1120,7 @@
     border-radius: 18px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass-strong);
-    backdrop-filter: blur(14px) saturate(1.6);
+    backdrop-filter: blur(9px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 16px 40px rgba(10, 3, 8, 0.34);
@@ -1205,7 +1205,7 @@
     color: rgba(255, 255, 255, 0.85);
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(12px) saturate(1.6);
+    backdrop-filter: blur(8px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 14px 36px rgba(12, 4, 10, 0.26);
