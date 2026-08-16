@@ -17,7 +17,14 @@
       | "volume"
       | "more"
       | "sidebar"
-      | "browser";
+      | "browser"
+      | "collapse"
+      | "gear"
+      | "refresh"
+      | "check"
+      | "chevron"
+      | "close"
+      | "immersive";
     size?: number;
   } = $props();
 </script>
@@ -78,5 +85,24 @@
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <line x1="3" y1="9.5" x2="21" y2="9.5" />
     <circle cx="6.3" cy="7.2" r="0.6" fill="currentColor" stroke="none" />
+  {:else if name === "collapse"}
+    <!-- The inverse of "exit": four arrows pulled in toward the middle. -->
+    <path d="M9 3v6H3M21 9h-6V3M3 15h6v6M15 21v-6h6" />
+  {:else if name === "immersive"}
+    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+  {:else if name === "gear"}
+    <circle cx="12" cy="12" r="3.1" />
+    <path
+      d="M19.4 15a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-1 1.47V21a2 2 0 1 1-4 0v-.11a1.6 1.6 0 0 0-1.05-1.46 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-1.47-1H3a2 2 0 1 1 0-4h.11a1.6 1.6 0 0 0 1.46-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.6 1.6 0 0 0 9 4.6a1.6 1.6 0 0 0 1-1.47V3a2 2 0 1 1 4 0v.11a1.6 1.6 0 0 0 1 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.6 1.6 0 0 0 19.4 9v.05a1.6 1.6 0 0 0 1.47 1H21a2 2 0 1 1 0 4h-.11a1.6 1.6 0 0 0-1.46 1Z"
+    />
+  {:else if name === "refresh"}
+    <path d="M20 11a8 8 0 1 0-2.3 6.3" />
+    <path d="M20 5v6h-6" />
+  {:else if name === "check"}
+    <path d="m4.5 12.5 5 5 10-11" stroke-width="2.4" />
+  {:else if name === "chevron"}
+    <path d="m6 9.5 6 6 6-6" stroke-width="2.2" />
+  {:else if name === "close"}
+    <path d="M6 6l12 12M18 6 6 18" stroke-width="2.4" />
   {/if}
 </svg>

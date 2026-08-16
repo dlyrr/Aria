@@ -1,10 +1,13 @@
 <script lang="ts">
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import { nav } from "$lib/nav.svelte";
   import { library } from "$lib/library.svelte";
+  import { streaming, SERVICES } from "$lib/streaming.svelte";
   import { lastfm } from "$lib/lastfm.svelte";
   import { discord } from "$lib/discord.svelte";
   import { theme, BACKDROPS, SKINS } from "$lib/theme.svelte";
   import { lyricsStyle, LYRIC_FX } from "$lib/lyricsStyle.svelte";
+  import { immersiveStyle, IMMERSIVE_MODES } from "$lib/immersiveStyle.svelte";
 
   let apiSecret = $state("");
 
@@ -100,6 +103,28 @@
       </label>
     {/if}
 
+    <h3>Immersive mode</h3>
+    <p class="desc">
+      Which full-screen player Aria opens. Right-clicking anywhere inside immersive mode
+      opens <strong>Appearance</strong>, where Solarium's crop, mask and lyric layout live.
+    </p>
+
+    <div class="backdrops" role="radiogroup" aria-label="Immersive mode">
+      {#each IMMERSIVE_MODES as option (option.id)}
+        <button
+          class="backdrop"
+          class:on={immersiveStyle.mode === option.id}
+          role="radio"
+          aria-checked={immersiveStyle.mode === option.id}
+          onclick={() => immersiveStyle.setMode(option.id)}
+        >
+          <span class="swatch" data-mode={option.id}></span>
+          <strong>{option.label}</strong>
+          <small>{option.hint}</small>
+        </button>
+      {/each}
+    </div>
+
     {#if theme.lastError}
       <div class="feedback">
         <span class="error" role="alert">
@@ -183,6 +208,58 @@
         <span class="wash-value">{Math.round(lyricsStyle[knob.key] * 100)}%</span>
       </label>
     {/each}
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Streaming Services</h2>
+      {#if streaming.any}
+        <div class="tools">
+          <button class="pill-btn" onclick={() => nav.go("streaming", streaming.active[0].id)}>
+            Open Search
+          </button>
+        </div>
+      {/if}
+    </div>
+    <p class="desc">
+      Search music that isn't on your disk. A service switched on here gets its own entry in
+      the sidebar. Neither needs an account or an API key.
+    </p>
+
+    <div class="switches">
+      {#each SERVICES as service (service.id)}
+        <label class="switch-row">
+          <span>
+            <strong>{service.label}</strong>
+            <small>{service.hint}</small>
+          </span>
+          <input
+            type="checkbox"
+            checked={streaming.enabled[service.id]}
+            onchange={(e) =>
+              streaming.setEnabled(service.id, (e.target as HTMLInputElement).checked)}
+          />
+        </label>
+      {/each}
+    </div>
+
+    <!-- Stated plainly and up front rather than discovered after a search:
+         what plays is a preview, and no setting in here changes that. -->
+    <p class="desc limits">
+      <strong>What you can play:</strong> the 30-second preview each service publishes, which
+      is all either one hands out without a paid account. Full tracks are delivered under
+      licence through the services' own DRM (Widevine, FairPlay), which Aria's window has no
+      way to decrypt — so every result links out to the track on the service instead.
+      Previews are cached, don't scrobble, and never touch your library.
+    </p>
+
+    <div class="lastfm-actions">
+      {#each SERVICES as service (service.id)}
+        <button class="text-link" onclick={() => openUrl(service.site)}>
+          Open {service.label}
+        </button>
+      {/each}
+    </div>
   </section>
 
   <section aria-busy={discord.busy}>
@@ -704,6 +781,22 @@
     background:
       linear-gradient(135deg, var(--art-primary), var(--art-tertiary));
   }
+  /* One frames the cover; Solarium lets it run off the edges. The previews say
+     that much and no more — a screenshot at 38px tall is a smudge. */
+  .swatch[data-mode="one"] {
+    background:
+      radial-gradient(
+        circle at 50% 50%,
+        var(--art-primary) 0 18%,
+        color-mix(in srgb, var(--art-primary) 22%, transparent) 19% 100%
+      ),
+      linear-gradient(135deg, var(--bg-deep), var(--sidebar));
+  }
+  .swatch[data-mode="solarium"] {
+    background:
+      radial-gradient(ellipse 62% 120% at 38% 50%, var(--art-primary) 0 30%, transparent 78%),
+      linear-gradient(120deg, var(--art-secondary), var(--art-tertiary));
+  }
   .swatch[data-preview="mica"] {
     background:
       linear-gradient(135deg, color-mix(in srgb, var(--art-primary) 45%, transparent),
@@ -839,6 +932,21 @@
     font-size: 12px;
     font-weight: 650;
     padding: 8px 0;
+  }
+  .lastfm-actions .text-link {
+    padding: 8px 12px 8px 0;
+  }
+  /* The one paragraph in here that is a limitation rather than a description,
+     so it sits in a panel instead of running on as more body copy. Same
+     treatment as `.queue-note` — this section shouldn't invent a second kind
+     of note for the same job. */
+  .limits {
+    margin: 4px 0 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    line-height: 1.5;
   }
   .switches {
     display: flex;

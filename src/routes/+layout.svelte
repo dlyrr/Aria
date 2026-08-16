@@ -6,8 +6,10 @@
   import { layout } from "$lib/layout.svelte";
   import { lastfm } from "$lib/lastfm.svelte";
   import { discord } from "$lib/discord.svelte";
+  import { streaming } from "$lib/streaming.svelte";
   import { theme } from "$lib/theme.svelte";
   import { lyricsStyle } from "$lib/lyricsStyle.svelte";
+  import { immersiveStyle } from "$lib/immersiveStyle.svelte";
 
   let { children } = $props();
 
@@ -23,11 +25,13 @@
   onMount(() => {
     theme.load();
     lyricsStyle.load();
+    immersiveStyle.load();
     layout.load();
     player.init();
     library.load();
     lastfm.load();
     discord.load();
+    streaming.load();
   });
 </script>
 

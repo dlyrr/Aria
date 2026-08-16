@@ -11,6 +11,20 @@ class UI {
   lastPanel = $state<"queue" | "lyrics">("lyrics");
   /** Library browser overlay inside immersive mode. */
   browserOpen = $state(false);
+  /**
+   * Solarium keeps its own two switches rather than One's single `panel`: the
+   * lyric card and the queue can be on screen at the same time there, so a
+   * three-way "which panel" can't describe it.
+   */
+  solLyrics = $state(true);
+  solQueue = $state(false);
+  /**
+   * Something of ImmersiveChrome's is on screen (right-click menu, Appearance,
+   * an open dropdown). Both modes listen for Escape on `window` and would exit
+   * out from under it otherwise — listener order can't arbitrate that, so the
+   * state is asked instead.
+   */
+  immersiveOverlay = $state(false);
   /** Persistent panel beside the normal library view. */
   sidePanel = $state<"none" | "queue" | "lyrics">("lyrics");
 
@@ -46,6 +60,7 @@ class UI {
     this.immersive = false;
     this.panel = "none";
     this.browserOpen = false;
+    this.immersiveOverlay = false;
   }
 
   async toggle() {

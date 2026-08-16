@@ -119,7 +119,7 @@
       </section>
     {/if}
 
-    <section>
+    <section class="songs">
       <h2>Songs</h2>
       <TrackList {tracks} onplay={play} showArt={true} />
     </section>
@@ -278,6 +278,13 @@
   }
   section {
     margin-bottom: 32px;
+  }
+  /* Pulls the list back out by the row's own left padding, so the row content
+     starts on the same line as the "Songs" heading and the album grid above it
+     rather than sitting a notch inside them. */
+  .songs :global(.list) {
+    margin-left: -10px;
+    margin-right: -10px;
   }
   h2 {
     font-size: 20px;
