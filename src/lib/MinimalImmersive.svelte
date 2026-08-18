@@ -47,7 +47,7 @@
   const pos = $derived(seeking ? seekValue : player.position);
   const progress = $derived(player.duration > 0 ? (pos / player.duration) * 100 : 0);
   const volPct = $derived(player.volume * 100);
-  const starred = $derived(!!player.current && library.isPinned("song", player.current.path));
+  const starred = $derived(!!player.current && library.isFavourite(player.current.path));
 
   // Minimal reuses One's single `panel` switch rather than Solarium's pair:
   // there is one side slot here and only one thing can be in it, which is
@@ -277,10 +277,10 @@
           <button
             class="mini"
             class:on={starred}
-            title={starred ? "Unpin song" : "Pin song"}
-            aria-label={starred ? "Unpin song" : "Pin song"}
+            title={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
+            aria-label={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
             aria-pressed={starred}
-            onclick={() => player.current && library.togglePin("song", player.current.path)}
+            onclick={() => player.current && library.toggleFavourite(player.current.path)}
           >
             <ImmersiveIcon name="star" size={13} />
           </button>

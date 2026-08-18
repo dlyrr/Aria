@@ -41,6 +41,20 @@ export interface LibraryPin {
   pinnedAt: number;
 }
 
+/**
+ * A favourited track.
+ *
+ * Deliberately not a pin. A pin puts something in the sidebar because you want
+ * it to hand; a favourite says you like the song, and the two answer different
+ * questions — you can like four hundred songs and want none of them cluttering
+ * the sidebar. Keyed by path like everything else here, and carrying when it
+ * happened so the list reads newest-first the way Liked Songs does.
+ */
+export interface Favourite {
+  path: string;
+  likedAt: number;
+}
+
 /** Per-file metadata edits stored locally — never written to the file itself. */
 interface Override {
   title?: string;
@@ -110,6 +124,7 @@ class Library {
   playlists = $state<Playlist[]>([]);
   albums = $state<Album[]>([]);
   pins = $state<LibraryPin[]>([]);
+  favourites = $state<Favourite[]>([]);
   /** Hand-arranged track order for folder albums, keyed by folder path. Only
    *  folders the user has actually reordered appear here; the rest fall back to
    *  disc order. Paths only — a rescan can replace the track objects. */
@@ -396,6 +411,32 @@ class Library {
     return this.effByPath(path);
   }
 
+  isFavourite(path: string): boolean {
+    return this.favourites.some((f) => f.path === path);
+  }
+
+  async toggleFavourite(path: string) {
+    this.favourites = this.isFavourite(path)
+      ? this.favourites.filter((f) => f.path !== path)
+      : [...this.favourites, { path, likedAt: Date.now() }];
+    await this.save("favourites", this.favourites);
+  }
+
+  /**
+   * Every liked track, most recently liked first — the order Liked Songs is
+   * read in. A favourite whose file isn't in the library right now is skipped
+   * rather than dropped: the like is the user's, and a drive that wasn't
+   * mounted at scan time must not silently unlike four hundred songs.
+   */
+  get likedTracks(): TrackMeta[] {
+    const byPath = new Map(this.tracks.map((t) => [t.path, t]));
+    return this.favourites
+      .slice()
+      .sort((a, b) => b.likedAt - a.likedAt)
+      .map((f) => byPath.get(f.path))
+      .filter((t): t is TrackMeta => !!t);
+  }
+
   isPinned(kind: PinKind, target: string): boolean {
     return this.pins.some((pin) => pin.kind === kind && pin.target === target);
   }
@@ -417,7 +458,7 @@ class Library {
     if (this.loaded) return;
     this.loaded = true;
 
-    const [folders, playlists, albums, overrides, artistImages, pins, folderOrders] =
+    const [folders, playlists, albums, overrides, artistImages, pins, folderOrders, favourites] =
       await Promise.all([
         invoke<string[] | null>("load_data", { key: "folders" }),
         invoke<Playlist[] | null>("load_data", { key: "playlists" }),
@@ -426,6 +467,7 @@ class Library {
         invoke<Record<string, string> | null>("load_data", { key: "artistImages" }),
         invoke<LibraryPin[] | null>("load_data", { key: "pins" }),
         invoke<Record<string, string[]> | null>("load_data", { key: "folderOrders" }),
+        invoke<Favourite[] | null>("load_data", { key: "favourites" }),
       ]);
     this.playlists = playlists ?? [];
     this.albums = albums ?? [];
@@ -433,6 +475,7 @@ class Library {
     this.artistImages = artistImages ?? {};
     this.pins = pins ?? [];
     this.folderOrders = folderOrders ?? {};
+    this.favourites = favourites ?? [];
 
     if (this.playlists.length > 0) {
       this.lastPlaylistId = this.playlists[0].id;
@@ -662,6 +705,11 @@ class Library {
     this.pins = this.pins.map((pin) =>
       pin.kind === "song" && pin.target === from ? { ...pin, target: to } : pin,
     );
+    // A like follows its file. Everything here is keyed by path, so filing a
+    // track into an album would otherwise unlike it.
+    this.favourites = this.favourites.map((f) =>
+      f.path === from ? { ...f, path: to } : f,
+    );
     // A hand-arranged folder keeps its shape when a file inside it is renamed;
     // a file that left the folder is simply no longer matched by that list.
     this.folderOrders = Object.fromEntries(
@@ -683,6 +731,7 @@ class Library {
       this.save("albums", this.albums),
       this.save("playlists", this.playlists),
       this.save("pins", this.pins),
+      this.save("favourites", this.favourites),
       this.save("overrides", this.overrides),
       this.save("folderOrders", this.folderOrders),
     ]);

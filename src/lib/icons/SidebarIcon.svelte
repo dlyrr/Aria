@@ -13,6 +13,7 @@
       | "playlists"
       | "settings"
       | "search"
+      | "liked"
       | "pin"
       | "add"
       | "streaming";
@@ -61,6 +62,11 @@
   {:else if name === "search"}
     <circle cx="10.5" cy="10.5" r="6.5" />
     <path d="m15.5 15.5 4.5 4.5" />
+  {:else if name === "liked"}
+    <!-- A heart drawn as two arcs meeting at a point, rather than one path with
+         a cusp: at 18px a cusp rounds off into a notch and the shape stops
+         reading as a heart at all. -->
+    <path d="M12 20.4 4.6 13a4.7 4.7 0 0 1 0-6.7 4.7 4.7 0 0 1 6.7 0l.7.7.7-.7a4.7 4.7 0 0 1 6.7 0 4.7 4.7 0 0 1 0 6.7Z" />
   {:else if name === "pin"}
     <!-- Thumbtack seen side-on, symmetric about x=12: cap, neck, flange, needle.
          Drawn upright rather than tilted so the needle never crosses the body —

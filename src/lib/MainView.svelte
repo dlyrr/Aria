@@ -5,6 +5,7 @@
   import Home from "$lib/views/Home.svelte";
   import Recent from "$lib/views/Recent.svelte";
   import Songs from "$lib/views/Songs.svelte";
+  import Liked from "$lib/views/Liked.svelte";
   import Albums from "$lib/views/Albums.svelte";
   import AlbumDetail from "$lib/views/AlbumDetail.svelte";
   import ArtistDetail from "$lib/views/ArtistDetail.svelte";
@@ -25,6 +26,8 @@
       <Recent />
     {:else if nav.view === "songs"}
       <Songs />
+    {:else if nav.view === "liked"}
+      <Liked />
     {:else if nav.view === "albums"}
       <Albums />
     {:else if nav.view === "album"}

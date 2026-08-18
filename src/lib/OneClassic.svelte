@@ -54,7 +54,7 @@
   // made in One is the choice you come back to here.
   const split = $derived(ui.panel !== "none");
 
-  const starred = $derived(!!player.current && library.isPinned("song", player.current.path));
+  const starred = $derived(!!player.current && library.isFavourite(player.current.path));
 
   /** The library record the current track belongs to, if the scan found one. */
   const album = $derived.by(() => {
@@ -241,10 +241,10 @@
         <button
           class="ghost star"
           class:on={starred}
-          title={starred ? "Unpin song" : "Pin song"}
-          aria-label={starred ? "Unpin song" : "Pin song"}
+          title={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
+          aria-label={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
           aria-pressed={starred}
-          onclick={() => player.current && library.togglePin("song", player.current.path)}
+          onclick={() => player.current && library.toggleFavourite(player.current.path)}
           disabled={!player.current}
         >
           <ImmersiveIcon name="star" size={15} />

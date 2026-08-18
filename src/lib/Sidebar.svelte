@@ -10,10 +10,11 @@
   import Artwork from "$lib/Artwork.svelte";
   import SidebarIcon from "$lib/icons/SidebarIcon.svelte";
 
-  const libraryItems: { id: View; label: string; icon: "home" | "recent" | "songs" | "albums" | "videos" | "queue" | "playlists" }[] = [
+  const libraryItems: { id: View; label: string; icon: "home" | "recent" | "songs" | "liked" | "albums" | "videos" | "queue" | "playlists" }[] = [
     { id: "home", label: "Home", icon: "home" },
     { id: "recent", label: "Recently Added", icon: "recent" },
     { id: "songs", label: "Songs", icon: "songs" },
+    { id: "liked", label: "Liked Songs", icon: "liked" },
     { id: "albums", label: "Albums", icon: "albums" },
     { id: "videos", label: "Videos", icon: "videos" },
     { id: "queue", label: "Play Queue", icon: "queue" },
@@ -212,7 +213,6 @@
     max-width: 34vw;
     background: var(--chrome-tint);
     backdrop-filter: var(--chrome-blur);
-    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     padding: 14px 12px 12px;

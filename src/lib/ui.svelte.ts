@@ -27,6 +27,15 @@ class UI {
   immersiveOverlay = $state(false);
   /** Persistent panel beside the normal library view. */
   sidePanel = $state<"none" | "queue" | "lyrics">("lyrics");
+  /**
+   * The immersive settings dock, docked to the left edge.
+   *
+   * Global rather than owned by Immersive.svelte because the control that
+   * opens it lives inside whichever mode is on — each mode already has a row
+   * of buttons, and a second floating cluster for one more toggle was one
+   * cluster too many.
+   */
+  immersiveSidebar = $state(false);
 
   /** Whether the window was already maximized before immersive took over. */
   private wasMaximized = false;

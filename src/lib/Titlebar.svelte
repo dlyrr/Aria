@@ -1,6 +1,7 @@
 <script lang="ts">
   import { nav } from "./nav.svelte";
-  import { player, formatTime } from "$lib/player.svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { player, formatTime, type TrackMeta } from "$lib/player.svelte";
   import { ui } from "$lib/ui.svelte";
   import Artwork from "$lib/Artwork.svelte";
   import WindowControls from "$lib/WindowControls.svelte";
@@ -9,6 +10,41 @@
   import { library } from "$lib/library.svelte";
   import { contextMenu } from "$lib/contextMenuState.svelte";
   import { primaryArtist } from "$lib/artists";
+
+  /**
+   * Sharing a local file is really sharing *what the song is*, not where it
+   * lives: a path off this machine is meaningless to whoever you send it to.
+   * So the link points at a search for the track on a service anyone can open,
+   * which is the closest thing to "here, listen to this" that a library of
+   * loose files can offer.
+   */
+  function searchUrl(track: TrackMeta): string {
+    const q = encodeURIComponent(`${track.title} ${track.artist}`.trim());
+    return `https://song.link/s/search?q=${q}`;
+  }
+
+  function albumSearchUrl(track: TrackMeta): string {
+    const q = encodeURIComponent(`${track.album || track.title} ${track.artist}`.trim());
+    return `https://song.link/s/search?q=${q}`;
+  }
+
+  async function shareLink(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      console.error("couldn't copy to the clipboard:", e);
+    }
+  }
+
+  async function openMiniplayer() {
+    try {
+      await invoke("open_miniplayer");
+      // The point of a miniplayer is that the big one goes away.
+      await invoke("set_main_visible", { visible: false });
+    } catch (e) {
+      console.error("couldn't open the miniplayer:", e);
+    }
+  }
 
   function handleContextMenu(e: MouseEvent) {
     const track = player.current;
@@ -61,21 +97,11 @@
         icon: "play-later",
         action: () => player.addToQueue([track])
       },
-      {
-        label: "Start Radio",
-        icon: "radio",
-        disabled: true
-      },
       { label: "SEPARATOR" },
       {
-        label: "Favorite",
+        label: library.isFavourite(track.path) ? "Remove from Liked Songs" : "Favorite",
         icon: "star",
-        disabled: true
-      },
-      {
-        label: "Suggest Less",
-        icon: "suggest-less",
-        disabled: true
+        action: () => library.toggleFavourite(track.path)
       },
       {
         label: "Properties",
@@ -116,23 +142,19 @@
         label: "Share",
         icon: "share",
         submenu: [
-          { label: "Copy Link", disabled: true },
-          { label: "Copy Embed Code", disabled: true }
+          {
+            label: "Copy Song Link",
+            action: () => shareLink(searchUrl(track))
+          },
+          {
+            label: "Copy Album Link",
+            action: () => shareLink(albumSearchUrl(track))
+          },
+          {
+            label: "Copy Details",
+            action: () => shareLink(`${track.title} — ${track.artist}${track.album ? ` (${track.album})` : ""}`)
+          }
         ]
-      },
-      {
-        label: "Plugins",
-        icon: "plugin",
-        submenu: [
-          { label: "No Plugins Installed", disabled: true }
-        ]
-      },
-      { label: "SEPARATOR" },
-      {
-        label: "Remove from Library",
-        icon: "remove",
-        isDanger: true,
-        disabled: true
       },
       { label: "SEPARATOR" },
       {
@@ -143,14 +165,7 @@
       {
         label: "MiniPlayer",
         icon: "miniplayer",
-        disabled: true
-      },
-      {
-        label: "Developer",
-        icon: "developer",
-        submenu: [
-          { label: "Developer Options", disabled: true }
-        ]
+        action: () => openMiniplayer()
       }
     ]);
   }
@@ -388,7 +403,6 @@
     color: var(--text);
     background: var(--chrome-tint);
     backdrop-filter: var(--chrome-blur);
-    border-bottom: 1px solid var(--border);
     user-select: none;
   }
   .left {

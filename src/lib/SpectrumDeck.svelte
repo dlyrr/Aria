@@ -50,19 +50,6 @@
    * arithmetic that keeps that true.
    */
   const ROWS = 27;
-  /**
-   * How often a row of levels is captured, ms. Deliberately *not* every frame:
-   * at 60fps a 26-row deck would hold under half a second of music, which is
-   * too short to read as a landscape. ~14 rows a second gives the ribbon about
-   * two seconds of history — long enough to see the shape of a bar go past —
-   * and costs the DOM sixteen new nodes a tick instead of a thousand.
-   *
-   * Must match `--tick` in the stylesheet: the creep animation is one row per
-   * this interval, and the two are phase-locked in `pushRow`.
-   */
-  const TICK_MS = 72;
-
-  type Row = { id: number; cells: number[] };
 
   /**
    * Four bands smeared across sixteen columns.
@@ -107,32 +94,43 @@
     return out;
   }
 
-  let nextId = 0;
-  const blankRow = (): Row => ({ id: nextId++, cells: new Array(COLS).fill(0.05) });
+  /**
+   * How far up its column each band reaches, right now.
+   *
+   * This was a scrolling history — a waterfall of past levels creeping toward
+   * the horizon — which is a beautiful thing that is not an analyser. What it
+   * showed was where the music had been; watching it, you could not tell which
+   * end was live. Columns that answer the sound *as it happens* is the whole
+   * ask, so the deck reads left-to-right as bass-to-treble and moves with the
+   * track rather than away from it.
+   *
+   * `player.analyzerBands` is already interpolated and enveloped every frame
+   * (fast attack, slow release), so nothing needs smoothing again here.
+   */
+  const heights = $derived(spread(player.analyzerBands));
+
+  /** Depth index for each cell in a column, front to back. */
+  const depths = Array.from({ length: ROWS }, (_, r) => r);
 
   /**
-   * The ring buffer, oldest first. `$state.raw` on purpose: this array is
-   * wholly replaced every tick and never mutated in place, so deep proxying
-   * 27 × 16 numbers would be four hundred proxies a tick bought for nothing.
+   * The high-water mark per column, falling slower than the bar under it.
+   * Written on the same frames the levels change, so it needs no clock: a
+   * fixed fraction per frame is a fall of about a second from the top, and
+   * being frame-rate dependent is fine for a decoration nobody times.
    */
-  let rows = $state.raw<Row[]>(Array.from({ length: ROWS }, blankRow));
-
-  /** The sliding stack, bound so the creep animation can be re-phased. */
-  let rowsEl = $state<HTMLElement | null>(null);
-
-  function pushRow() {
-    rows = [...rows.slice(1), { id: nextId++, cells: spread(player.analyzerBands) }];
-    // The creep is a CSS animation of exactly one row per `--tick`, and the
-    // data shift is exactly one row per `TICK_MS`. Two clocks that agree on
-    // paper drift on a real machine, and a drift here is not subtle — at the
-    // front edge one row is a tenth of the screen, so a lost cycle reads as
-    // the whole ribbon jumping. Snapping the animation back to zero at the
-    // moment the data shifts locks them together for good. Svelte hasn't
-    // flushed the new row into the DOM yet, but neither has the browser
-    // painted, so both land in the same frame.
-    const creep = rowsEl?.getAnimations()[0];
-    if (creep) creep.currentTime = 0;
-  }
+  let peaks = $state<number[]>(new Array(COLS).fill(0));
+  $effect(() => {
+    const next = heights;
+    const held = peaks;
+    let changed = false;
+    const out = held.map((p, c) => {
+      const fallen = p * 0.978;
+      const v = Math.max(next[c] ?? 0, fallen);
+      if (Math.abs(v - p) > 0.002) changed = true;
+      return v;
+    });
+    if (changed) peaks = out;
+  });
 
   let seeking = $state(false);
   let seekValue = $state(0);
@@ -141,7 +139,7 @@
   const pos = $derived(seeking ? seekValue : player.position);
   const progress = $derived(player.duration > 0 ? (pos / player.duration) * 100 : 0);
   const volPct = $derived(player.volume * 100);
-  const starred = $derived(!!player.current && library.isPinned("song", player.current.path));
+  const starred = $derived(!!player.current && library.isFavourite(player.current.path));
 
   // One side column, driven by `ui.panel` rather than a local flag so the
   // button cluster in Immersive.svelte — which is outside this component and
@@ -182,10 +180,6 @@
 
   onMount(() => {
     window.scrollTo(0, 0);
-    // A plain interval, not rAF: the point of the whole design is that the
-    // scene is static between ticks and the compositor owns the motion.
-    const timer = setInterval(pushRow, TICK_MS);
-    return () => clearInterval(timer);
   });
 </script>
 
@@ -226,16 +220,19 @@
            light scrolls over them. -->
       <div class="bed"></div>
       <div class="ribbon">
-        <div class="rows" bind:this={rowsEl}>
-          <!-- Keyed by id, ordered oldest first. The array is a shift-and-push,
-               so this diff is one node destroyed off the top and one created at
-               the bottom — no reordering, and no per-row style write, because a
-               row's depth is its position in a flex column and nothing else. -->
-          {#each rows as row (row.id)}
-            <div class="row">
-              {#each row.cells as v}
-                <i style="opacity:{v}"></i>
+        <div class="bars">
+          <!-- One column per band, lit from the front edge up to that band's
+               level: an analyser, not a history of one. The DOM is
+               column-major so a column's level is a custom property its own
+               cells inherit — which is what keeps this to sixteen style writes
+               a frame instead of four hundred. Each cell's lit state is then
+               arithmetic the browser does from `--h` and its own `--r`. -->
+          {#each heights as h, c (c)}
+            <div class="bar" style="--h:{h};--p:{peaks[c]}">
+              {#each depths as r (r)}
+                <i style="--r:{r}"></i>
               {/each}
+              <span class="peak"></span>
             </div>
           {/each}
         </div>
@@ -347,10 +344,10 @@
           <button
             class="now-icon"
             class:on={starred}
-            title={starred ? "Unpin song" : "Pin song"}
-            aria-label={starred ? "Unpin song" : "Pin song"}
+            title={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
+            aria-label={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
             aria-pressed={starred}
-            onclick={() => player.current && library.togglePin("song", player.current.path)}
+            onclick={() => player.current && library.toggleFavourite(player.current.path)}
           >
             <ImmersiveIcon name="star" size={13} />
           </button>
@@ -483,8 +480,6 @@
     /* 26 rows span the plane; the 27th lives below its front edge. */
     --rows-total: 27;
     --row-h: calc(var(--plane-h) / 26);
-    /* Must equal TICK_MS in the script. */
-    --tick: 72ms;
     --side: min(560px, 44%);
 
     --deck-text: rgba(255, 255, 255, 0.96);
@@ -549,8 +544,11 @@
     height: var(--horizon);
     /* Darkest at the top and letting go entirely at the horizon: what's left
        of the field is a band of the record's colour sitting on the skyline,
-       which is the only place a wash of orange reads as a sunset. */
-    background: linear-gradient(to bottom, rgba(4, 1, 9, 0.86), rgba(4, 1, 9, 0.06));
+       which is the only place a wash of orange reads as a sunset.
+       Lighter than it was: at 0.86 the sky was near enough opaque that the
+       field's drift happened behind a curtain, and a moving backdrop nobody
+       can see moving is just an expensive still. */
+    background: linear-gradient(to bottom, rgba(4, 1, 9, 0.62), rgba(4, 1, 9, 0.02));
     pointer-events: none;
   }
   .ground {
@@ -562,8 +560,10 @@
     bottom: 0;
     /* The floor has to be dark for the ribbon's unlit cells to read as unlit,
        and it has to get darker toward the viewer or the grid's own convergence
-       makes the far end look like the near end. */
-    background: linear-gradient(to bottom, rgba(3, 1, 7, 0.2), rgba(3, 1, 7, 0.78));
+       makes the far end look like the near end. It stops well short of opaque
+       now, so the field still turns over underneath the deck — the colour
+       moving under a static grid is most of what sells the perspective. */
+    background: linear-gradient(to bottom, rgba(3, 1, 7, 0.06), rgba(3, 1, 7, 0.5));
     pointer-events: none;
   }
 
@@ -688,46 +688,58 @@
     `.ribbon` also carries the tilt, and the bed underneath must not move: the
     deck's rules are the deck, and only the light travels.
   */
-  .rows {
+  .bars {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: calc(-1 * var(--row-h));
-    display: flex;
-    flex-direction: column;
-    /* One transform on one element is the entire animation budget of this
-       mode. `will-change` keeps it on its own composited layer so the tilted
-       plane above it isn't re-rasterised sixty times a second. */
-    will-change: transform;
-    animation: deck-creep var(--tick) linear infinite;
-  }
-  @keyframes deck-creep {
-    from {
-      transform: translateY(0);
-    }
-    to {
-      /* Percentages in `translateY` resolve against this element's own height,
-         which is exactly `--rows-total` rows — so this is one row, expressed
-         without needing to know what a row is in pixels. */
-      transform: translateY(calc(-100% / var(--rows-total)));
-    }
-  }
-
-  .row {
+    inset: 0;
     display: flex;
     gap: 1px;
-    height: var(--row-h);
-    padding-bottom: 1px;
-    box-sizing: border-box;
-    flex: none;
   }
+  /* A column of the deck, front (nearest the viewer) to back. Reversed so the
+     first cell is the front one: a bar grows out of the front edge toward the
+     skyline, which is the direction perspective makes "up". */
+  .bar {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 1px;
+  }
+
   /* The gaps are the ribbon's horizontal rules, and because they live in the
      plane's own space the perspective widens them as they come forward — a
      free depth cue that a drawn 1px line would not have given. */
-  .row i {
+  /**
+   * Whether a cell is lit is a subtraction, not a branch.
+   *
+   * `--h` is its column's level 0–1 and `--r` is how many cells it sits from
+   * the front, so `h × rows − r` is positive for every cell under the level
+   * and negative above it. Clamped, that *is* the opacity — and the single
+   * cell straddling the top of the bar gets a fraction, which softens the tip
+   * instead of letting it step a whole cell at a time.
+   *
+   * The point of doing it here rather than in the script: levels arrive as
+   * sixteen custom properties and the browser resolves four hundred cells from
+   * them, instead of the script writing an opacity per cell per frame.
+   */
+  .bar i {
     flex: 1;
-    min-width: 0;
+    min-height: 0;
     background: #fff;
+    opacity: clamp(0, calc(var(--h, 0) * var(--rows-total) - var(--r, 0)), 1);
+  }
+  /* A real analyser holds the high-water mark and lets it fall slower than the
+     bar — that is what keeps a transient legible after the sound that caused
+     it has already gone. */
+  .peak {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    bottom: calc(var(--p, 0) * 100%);
+    background: #fff;
+    opacity: calc(0.2 + 0.6 * var(--p, 0));
+    pointer-events: none;
   }
 
   .haze {
@@ -1120,15 +1132,9 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    /* Freeze the creep, not the data: the ribbon still gathers a row every
-       tick and still shows the shape of the music, it just steps one row at a
-       time instead of gliding. Stopping the pushes too would leave the mode
-       with a permanently blank deck, which is a worse answer to "less motion"
-       than a slower one. */
-    .rows {
-      animation: none;
-      will-change: auto;
-    }
+    /* Nothing to freeze on the deck any more: the bars answer the music and
+       stopping them would be stopping the analyser, not calming it. The
+       transitions below are the only motion this mode adds of its own. */
     .stage,
     .ctl,
     .now-icon {

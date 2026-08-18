@@ -74,7 +74,6 @@
     color: var(--text);
     background: var(--chrome-tint);
     backdrop-filter: var(--chrome-blur);
-    border-left: 1px solid var(--border);
   }
   header {
     min-height: 48px;

@@ -2,6 +2,7 @@ export type View =
   | "home"
   | "recent"
   | "songs"
+  | "liked"
   | "albums"
   | "album"
   | "artist"

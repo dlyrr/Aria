@@ -46,7 +46,7 @@
   const pos = $derived(seeking ? seekValue : player.position);
   const progress = $derived(player.duration > 0 ? (pos / player.duration) * 100 : 0);
   const volPct = $derived(player.volume * 100);
-  const starred = $derived(!!player.current && library.isPinned("song", player.current.path));
+  const starred = $derived(!!player.current && library.isFavourite(player.current.path));
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
   /** `1.5` → "1.5×", `1` → "1×", `0.75` → "0.75×". */
@@ -333,13 +333,18 @@
       use:glass={{ blur: 6, saturate: 1.6, bezel: 12, strength: 22, lens: 0.07 }}
       transition:fade={{ duration: 160 }}
     >
+      <!-- The settings dock. It already wore the sidebar icon while doing
+           something else; a mode's own row of buttons is where you look for
+           this, so it lives here rather than in a cluster of its own.
+           Artwork-only is still one click away — turning off whichever of the
+           two panels is lit does it. -->
       <button
-        class:selected={!ui.solLyrics && !ui.solQueue}
-        title="Artwork only"
-        aria-label="Artwork only"
+        class:selected={ui.immersiveSidebar}
+        title="Settings"
+        aria-label="Settings"
+        aria-pressed={ui.immersiveSidebar}
         onclick={() => {
-          ui.solLyrics = false;
-          ui.solQueue = false;
+          ui.immersiveSidebar = !ui.immersiveSidebar;
           wake(true);
         }}
       >
@@ -439,10 +444,10 @@
           <button
             class="now-star"
             class:on={starred}
-            title={starred ? "Unpin song" : "Pin song"}
-            aria-label={starred ? "Unpin song" : "Pin song"}
+            title={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
+            aria-label={starred ? "Remove from Liked Songs" : "Add to Liked Songs"}
             aria-pressed={starred}
-            onclick={() => player.current && library.togglePin("song", player.current.path)}
+            onclick={() => player.current && library.toggleFavourite(player.current.path)}
           >
             <ImmersiveIcon name="star" size={13} />
           </button>
