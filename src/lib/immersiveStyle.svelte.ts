@@ -1,18 +1,24 @@
 //! Which immersive mode is on, and how Solarium is laid out.
 //!
-//! Two modes ship:
+//! Five modes ship:
 //!
 //! - `one`      — the original: a square cover centred in the window with the
 //!                transport under it and a panel beside it.
 //! - `solarium` — the cover *is* the screen. It is cropped to a target aspect
 //!                ratio, dissolved into the colour field it generates, and the
 //!                controls float over it.
+//! - `classic`  — cover left, lyrics large on the right, and one wide control
+//!                bar across the bottom of the window rather than a floating
+//!                pill. The layout of a full-screen player as they used to be.
+//! - `minimal`  — the cover alone over a quiet field, with slow light trails
+//!                behind it. Nothing on screen that isn't the record.
+//! - `spectrum` — a perspective deck with the live spectrum running down it.
 //!
 //! Everything below `mode` describes Solarium only; One has no artwork frame to
 //! crop, no mask and no compact lyric bar, so those knobs are shown disabled
 //! rather than silently doing nothing (see ImmersiveChrome).
 
-export type ImmersiveMode = "one" | "solarium";
+export type ImmersiveMode = "one" | "solarium" | "classic" | "minimal" | "spectrum";
 
 export const IMMERSIVE_MODES: {
   id: ImmersiveMode;
@@ -28,6 +34,21 @@ export const IMMERSIVE_MODES: {
     id: "solarium",
     label: "Solarium",
     hint: "The cover fills the screen and dissolves into its own colour.",
+  },
+  {
+    id: "classic",
+    label: "One Classic",
+    hint: "Cover left, lyrics right, one control bar across the bottom.",
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    hint: "The cover alone, over slow light trails. Nothing else.",
+  },
+  {
+    id: "spectrum",
+    label: "Spectrum Deck",
+    hint: "A perspective deck with the spectrum running down it.",
   },
 ];
 

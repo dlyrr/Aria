@@ -15,6 +15,8 @@
   } from "$lib/immersiveStyle.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
   import { glass } from "$lib/liquidGlass";
+  import { nav } from "$lib/nav.svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
 
   let {
     appearance,
@@ -83,6 +85,24 @@
   function openAppearanceFromMenu() {
     menu = null;
     onopen();
+  }
+
+  /** The window's own fullscreen, which immersive sits inside rather than owns. */
+  async function toggleFullscreen() {
+    const win = getCurrentWindow();
+    try {
+      await win.setFullscreen(!(await win.isFullscreen()));
+    } catch {
+      /* a window manager that refuses is not worth an error here */
+    }
+  }
+
+  /** Leave immersive for the app's own settings view — the two are different
+   *  things, and this panel only covers the immersive half. */
+  function openSettings() {
+    onclose();
+    ui.exit();
+    nav.go("settings");
   }
 
   function pickMode(mode: ImmersiveMode) {
@@ -189,6 +209,29 @@
       <h2>Appearance</h2>
       <button class="close" aria-label="Close" title="Close" onclick={onclose}>
         <ImmersiveIcon name="close" size={14} />
+      </button>
+    </div>
+
+    <!-- Places to go, before values to set. Everything here was already
+         reachable — from the right-click menu, from a keyboard shortcut, from
+         the window itself — but not from the one panel you open when you want
+         to change how immersive behaves. -->
+    <div class="actions">
+      <button class="action" onclick={() => { onclose(); ui.exit(); }}>
+        <span class="glyph"><ImmersiveIcon name="collapse" size={16} /></span>
+        <span>Exit Immersive</span>
+      </button>
+      <button class="action" onclick={() => { onclose(); ui.toggleBrowser(); }}>
+        <span class="glyph"><ImmersiveIcon name="browser" size={16} /></span>
+        <span>Browser</span>
+      </button>
+      <button class="action" onclick={toggleFullscreen}>
+        <span class="glyph"><ImmersiveIcon name="immersive" size={16} /></span>
+        <span>Fullscreen</span>
+      </button>
+      <button class="action" onclick={openSettings}>
+        <span class="glyph"><ImmersiveIcon name="gear" size={16} /></span>
+        <span>App Settings</span>
       </button>
     </div>
 
@@ -419,16 +462,27 @@
     background: rgba(255, 255, 255, 0.12);
   }
 
+  /**
+   * Docked to the left edge, not floating in the middle.
+   *
+   * Half of what this panel changes is only visible on the mode behind it, and
+   * a centred dialog sat on top of exactly the thing you were adjusting. From
+   * the side it can stay open while the stage — which Immersive.svelte shifts
+   * and shrinks out from under it — remains wholly visible.
+   */
   .appearance {
     position: fixed;
     z-index: 2147483647;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 460px;
-    max-width: calc(100vw - 24px);
-    padding: 16px 18px 16px;
-    border-radius: 22px;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 480px;
+    max-width: min(92vw, 480px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* Clear of the traffic lights and the button cluster above it. */
+    padding: 96px 18px 24px;
+    border-radius: 0 22px 22px 0;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.06)),
@@ -440,6 +494,38 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.14),
       0 26px 70px rgba(6, 2, 6, 0.5);
     color: rgba(255, 255, 255, 0.92);
+  }
+  .appearance::-webkit-scrollbar {
+    width: 0;
+  }
+
+  /* The actions at the top of the dock: places to go, not values to set, so
+     they read as a menu rather than as rows with a control on the right. */
+  .actions {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+  }
+  .action {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 8px;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    font-weight: 560;
+    text-align: left;
+    transition: background 140ms ease;
+  }
+  .action:hover {
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .action .glyph {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    color: rgba(255, 255, 255, 0.72);
   }
   .head {
     display: flex;

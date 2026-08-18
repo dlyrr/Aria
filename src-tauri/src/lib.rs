@@ -288,6 +288,67 @@ fn set_backdrop(window: tauri::WebviewWindow, kind: String) -> Result<(), String
     window.set_effects(config).map_err(|e| e.to_string())
 }
 
+/// Open the miniplayer, or bring it forward if it is already up.
+///
+/// A second window rather than a mode of the main one: it has to float above
+/// other applications, and "always on top" is a property of a window. It loads
+/// the same bundle with `?view=mini`, which the frontend reads to render the
+/// small player instead of the library — one build, one router, and no second
+/// entry point to keep in step.
+#[tauri::command]
+async fn open_miniplayer(app: AppHandle) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window("mini") {
+        let _ = existing.show();
+        let _ = existing.unminimize();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "mini",
+        tauri::WebviewUrl::App("index.html?view=mini".into()),
+    )
+    .title("Aria")
+    .inner_size(340.0, 468.0)
+    // Tall enough for the lyrics and queue views, short enough that the
+    // compact one can be dragged down to artwork and controls alone.
+    .min_inner_size(300.0, 150.0)
+    .always_on_top(true)
+    .resizable(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn close_miniplayer(app: AppHandle) {
+    if let Some(mini) = app.get_webview_window("mini") {
+        let _ = mini.close();
+    }
+}
+
+/// The pin button: whether the miniplayer floats over everything else.
+#[tauri::command]
+fn set_miniplayer_pinned(app: AppHandle, pinned: bool) -> Result<(), String> {
+    let mini = app.get_webview_window("mini").ok_or("no miniplayer")?;
+    mini.set_always_on_top(pinned).map_err(|e| e.to_string())
+}
+
+/// Hide or show the main window. Sending it away while the miniplayer is up is
+/// what makes this a *mini* player rather than a second one.
+#[tauri::command]
+fn set_main_visible(app: AppHandle, visible: bool) -> Result<(), String> {
+    let main = app.get_webview_window("main").ok_or("no main window")?;
+    if visible {
+        main.show().map_err(|e| e.to_string())?;
+        let _ = main.unminimize();
+        main.set_focus().map_err(|e| e.to_string())
+    } else {
+        main.hide().map_err(|e| e.to_string())
+    }
+}
+
 /// Update the OS "now playing" metadata (SMTC).
 #[tauri::command]
 fn smtc_metadata(app: AppHandle, title: String, artist: String, album: String, duration: f64) {
@@ -416,6 +477,10 @@ pub fn run() {
             write_metadata,
             read_text_file,
             read_sidecar_lyrics,
+            open_miniplayer,
+            close_miniplayer,
+            set_miniplayer_pinned,
+            set_main_visible,
             image_to_data_uri,
             scan_folder,
             fetch_lyrics,
