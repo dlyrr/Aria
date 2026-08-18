@@ -501,8 +501,16 @@ export function createArtworkField(
   const stillness = window.matchMedia?.("(prefers-reduced-motion: reduce)");
   /** Set while something on top of the field wants it to stop moving. */
   let held = false;
+  /**
+   * The window is in the background. A shader redrawing every frame behind
+   * another app's window is pure waste — nobody is looking at it, and on a
+   * laptop it is the difference between idling and spinning a fan. Distinct
+   * from `document.hidden`, which only fires when the window is minimised or
+   * its tab is buried, not when it simply loses focus.
+   */
+  let unfocused = typeof document !== "undefined" && !document.hasFocus();
   /** Whether the drift should be running at all right now. */
-  const drifting = () => !held && !stillness?.matches;
+  const drifting = () => !held && !unfocused && !stillness?.matches;
 
   let prev: Layer | null = null;
   let next: Layer | null = null;
@@ -584,6 +592,16 @@ export function createArtworkField(
   }
   document.addEventListener("visibilitychange", onVisibility);
 
+  function onBlur() {
+    unfocused = true;
+  }
+  function onFocus() {
+    unfocused = false;
+    schedule();
+  }
+  window.addEventListener("blur", onBlur);
+  window.addEventListener("focus", onFocus);
+
   // A driver reset or a GPU switch takes the context away and leaves a frozen
   // canvas behind. Preventing the default keeps the canvas restorable, and the
   // owner is told so it can build a fresh field on it.
@@ -655,6 +673,8 @@ export function createArtworkField(
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
       canvas.removeEventListener("webglcontextlost", onContextLost);
       if (prev) gl.deleteTexture(prev.tex);
       if (next) gl.deleteTexture(next.tex);
