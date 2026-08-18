@@ -24,6 +24,8 @@ interface StatusEvent {
   loaded: boolean;
   volume: number;
   level: number;
+  /** Real per-band RMS from the engine, bass → treble. */
+  bands: number[];
 }
 
 const AUDIO_EXTS = ["mp3", "flac", "wav", "ogg", "oga", "m4a", "aac", "opus"];
@@ -39,8 +41,6 @@ const ANALYZER_BANDS: [number, number][] = [
 ];
 /** Per-band gain — higher bands carry less energy in real music. */
 const BAND_GAIN = [1.0, 1.1, 1.3, 1.6];
-/** Shape used when only a single RMS level is available (rodio backend). */
-const BAND_SHAPE = [1.0, 0.9, 0.74, 0.58];
 /** Everything below this much of the analyser's range reads as silence. Without
  *  it, ordinary mastered music sits near the top of the scale and the bars
  *  just stay pinned. */
@@ -109,12 +109,24 @@ class Player {
   private audio: HTMLAudioElement | null = null;
   private usingWeb = false;
   private raf = 0;
+
+  /**
+   * Last position the native engine actually reported, and the clock reading
+   * when it arrived. The engine ticks every 33ms, so on its own the playhead
+   * moves 30 times a second — visibly steppy under a karaoke fill, which is
+   * redrawing a mask edge against it. Between ticks the position is carried
+   * forward from these on an animation frame, so the fill runs at the display's
+   * rate and each tick only corrects the estimate.
+   */
+  private anchorPos = 0;
+  private anchorAt = 0;
+  private nativeRaf = 0;
   private audioContext: AudioContext | null = null;
   private webAnalyser: AnalyserNode | null = null;
   private webFreqData: Uint8Array | null = null;
   private bandLevels = [0, 0, 0, 0];
-  /** Drives the per-band offsets of the synthesized (rodio) fallback. */
-  private bandPhase = 0;
+  /** Where the bars are heading; see `pushBands` / `stepBands`. */
+  private bandTargets = [0, 0, 0, 0];
   /** Paths that must use the WebView2 backend (rodio failed to decode them). */
   private forceWeb = new Set<string>();
   /** Position (s) to resume at once the web backend has loaded. */
@@ -138,13 +150,18 @@ class Player {
       // Ignore the rodio engine's status while the web backend is in charge.
       if (this.usingWeb) return;
       const s = e.payload;
-      if (!this.scrubbing) this.position = s.position;
+      if (!this.scrubbing) this.anchor(s.position);
       // Duration from tags is authoritative; keep it if the engine reports 0.
       if (s.duration > 0) this.duration = s.duration;
       this.playing = s.playing;
       this.loaded = s.loaded;
-      if (s.playing) this.updateBandsFromLevel(s.level);
-      else this.clearWaveform();
+      if (s.playing) {
+        // A real four-band split from the engine, not one loudness fanned out.
+        this.pushBands(s.bands ?? []);
+        this.tickNative();
+      } else {
+        this.clearWaveform();
+      }
     });
 
     await listen("player://ended", () => {
@@ -264,13 +281,43 @@ class Player {
 
   /** Push new band targets through a fast-attack / slow-release envelope, so
    *  the bars snap up on transients and settle back the way Apple's do. */
+  /**
+   * Record where the bars are heading. Levels arrive at whatever rate their
+   * backend produces them — 30 a second from the engine, once a frame from the
+   * web analyser — so this only sets the target and `stepBands` does the
+   * moving, on an animation frame.
+   */
   private pushBands(targets: number[]) {
     for (let i = 0; i < 4; i++) {
-      const target = this.playing ? Math.max(0, Math.min(1, targets[i])) : 0;
-      const smoothing = target > this.bandLevels[i] ? 0.6 : 0.16;
-      this.bandLevels[i] += (target - this.bandLevels[i]) * smoothing;
+      this.bandTargets[i] = Math.max(0, Math.min(1, targets[i] ?? 0));
     }
-    this.analyzerBands = [...this.bandLevels];
+  }
+
+  /**
+   * Move the bars toward their targets by one frame.
+   *
+   * Attack far faster than release, which is what a meter has to do to look
+   * like it is responding to music: a beat should hit the bar immediately and
+   * fall away smoothly. Symmetric smoothing reads as syrup, and no smoothing
+   * at all reads as noise.
+   */
+  private stepBands() {
+    let moved = false;
+    for (let i = 0; i < 4; i++) {
+      const target = this.playing ? this.bandTargets[i] : 0;
+      const level = this.bandLevels[i];
+      const next = level + (target - level) * (target > level ? 0.45 : 0.09);
+      if (Math.abs(next - level) > 0.0005) {
+        this.bandLevels[i] = next;
+        moved = true;
+      } else if (level !== target) {
+        this.bandLevels[i] = target;
+        moved = true;
+      }
+    }
+    // Only publish when something actually changed: a silent passage should
+    // not re-render the analyzer sixty times a second for nothing.
+    if (moved) this.analyzerBands = [...this.bandLevels];
   }
 
   /** Split the spectrum into the four display bands. */
@@ -290,21 +337,10 @@ class Player {
 
   /** The rodio backend only reports one RMS level, so fan it out across the
    *  bands with a slow drift — close enough to read as a live analyzer. */
-  private updateBandsFromLevel(rawLevel: number) {
-    const level = Math.max(0, Math.min(1, rawLevel));
-    // Same expansion as the spectrum path, so both backends peak (and idle) at
-    // comparable heights instead of one of them sitting pinned.
-    const expanded = Math.pow(Math.max(0, (level - 0.08) / 0.92), 1.35) * 1.5;
-    this.bandPhase += 0.42;
-    const targets = BAND_SHAPE.map((shape, band) => {
-      const drift = 0.78 + 0.3 * Math.sin(this.bandPhase * (0.7 + 0.29 * band) + band * 1.9);
-      return Math.min(1, expanded * shape * drift);
-    });
-    this.pushBands(targets);
-  }
 
   private clearWaveform() {
     this.bandLevels = [0, 0, 0, 0];
+    this.bandTargets = [0, 0, 0, 0];
     this.analyzerBands = [0, 0, 0, 0];
   }
 
@@ -337,11 +373,46 @@ class Player {
     this.updateBandsFromSpectrum(this.webFreqData);
   }
 
+  /** Set the playhead and restart the estimate from here. */
+  private anchor(seconds: number) {
+    this.position = seconds;
+    this.anchorPos = seconds;
+    this.anchorAt = performance.now();
+  }
+
+  /**
+   * Carry the playhead forward between the native engine's status ticks.
+   *
+   * Only ever an estimate of the last reported position plus elapsed wall
+   * clock — the engine stays authoritative, and every tick re-anchors it. Runs
+   * on an animation frame, so the playhead advances in step with the display
+   * rather than at the engine's 30Hz.
+   */
+  private tickNative() {
+    cancelAnimationFrame(this.nativeRaf);
+    if (this.usingWeb || !this.playing) return;
+    this.nativeRaf = requestAnimationFrame(() => {
+      if (this.usingWeb || !this.playing) return;
+      if (!this.scrubbing) {
+        const elapsed = ((performance.now() - this.anchorAt) / 1000) * this.speed;
+        const next = this.anchorPos + elapsed;
+        // Clamped, so a paused-but-not-yet-reported engine can't run the
+        // playhead off the end of the track.
+        this.position = this.duration > 0 ? Math.min(next, this.duration) : next;
+      }
+      // The engine reports levels 30 times a second; the bars move toward them
+      // every frame, so what you see is the display's rate, not the engine's.
+      this.stepBands();
+      this.tickNative();
+    });
+  }
+
   /** Drive position from the <audio> element while the web backend plays. */
   private tickWeb() {
     if (!this.usingWeb || !this.audio) return;
     if (!this.scrubbing) this.position = this.audio.currentTime;
     this.sampleWebWaveform();
+    this.stepBands();
     if (this.audio.paused) return;
     this.raf = requestAnimationFrame(() => this.tickWeb());
   }
@@ -443,7 +514,9 @@ class Player {
     if (index < 0 || index >= this.queue.length) return;
     this.currentIndex = index;
     const track = this.queue[index];
-    this.position = 0;
+    // Anchored, so an estimate still running from the previous track can't
+    // drag the new one's playhead forward before its first status tick.
+    this.anchor(0);
     this.duration = track.duration;
 
     if (needsWebBackend(track.path) || this.forceWeb.has(track.path) || this.speed !== 1) {
@@ -661,7 +734,10 @@ class Player {
       // A seek/restart after natural completion is a fresh listen and therefore
       // sends a new Last.fm now-playing update.
     }
-    this.position = seconds;
+    // Re-anchored, not just assigned: the estimate between engine ticks is
+    // measured from the anchor, so leaving it behind would drag the playhead
+    // straight back to where the seek came from.
+    this.anchor(seconds);
     if (this.usingWeb && this.audio) {
       this.audio.currentTime = seconds;
     } else {

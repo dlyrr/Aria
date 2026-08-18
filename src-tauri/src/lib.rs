@@ -91,10 +91,11 @@ fn read_sidecar_lyrics(path: String) -> Option<SidecarLyrics> {
     let parent = media_path.parent()?;
     let stem = media_path.file_stem()?.to_str()?;
 
-    // Richest format first: Lyricsfile can carry word-level timing, LRC/VTT/SRT
-    // only line-level. `with_extension` swaps the media extension for the whole
-    // string, so this looks for "<name>.lyricsfile.yaml".
-    for extension in ["lyricsfile.yaml", "lrc", "vtt", "srt", "txt"] {
+    // Richest format first: `.slyr` (the native one) and Lyricsfile carry word
+    // timing and singers, LRC/VTT/SRT less, TXT nothing but the words.
+    // `with_extension` swaps the media extension for the whole string, so this
+    // also resolves the double-barrelled "<name>.lyricsfile.yaml".
+    for extension in SIDECAR_EXTS {
         let candidates = [
             media_path.with_extension(extension),
             parent.join(format!("{stem} (lyrics).{extension}")),
@@ -111,9 +112,10 @@ fn read_sidecar_lyrics(path: String) -> Option<SidecarLyrics> {
     None
 }
 
-/// Lyric sidecars that travel with an audio file when it moves. Mirrors
-/// `read_sidecar_lyrics`, so a track keeps the lyrics it had after a move.
-const SIDECAR_EXTS: [&str; 5] = ["lyricsfile.yaml", "lrc", "vtt", "srt", "txt"];
+/// Lyric sidecars, richest format first. Used both to find a track's lyrics and
+/// to carry them along when the file moves, so the two can never disagree about
+/// what counts as a sidecar.
+const SIDECAR_EXTS: [&str; 6] = ["slyr", "lyricsfile.yaml", "lrc", "vtt", "srt", "txt"];
 
 /// Make an album name usable as a single path component on Windows.
 /// Returns None when nothing usable survives.

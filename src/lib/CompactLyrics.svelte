@@ -8,10 +8,24 @@
   import { fly, fade } from "svelte/transition";
   import { prefersReducedMotion } from "svelte/motion";
   import { lyrics, wordProgress } from "$lib/lyrics.svelte";
+  import { alignmentLanes } from "$lib/lyricsLanes";
   import { player } from "$lib/player.svelte";
   import { glass } from "$lib/liquidGlass";
 
   const synced = $derived(lyrics.status === "synced" && lyrics.lines.length > 0);
+
+  /**
+   * Duet handling for a bar that only ever shows one line: the line takes its
+   * singer's side, so an exchange visibly bounces between the two instead of
+   * every line landing in the same place.
+   *
+   * Only when the file names its singers. A lane merely inferred from
+   * overlapping timings is too weak a signal to start moving text around in a
+   * bar this small, and a song with one vocalist stays centred as before.
+   */
+  const duet = $derived(lyrics.lines.some((l) => l.voice));
+  const lanes = $derived(duet ? alignmentLanes(lyrics.lines) : []);
+  const sideOf = (i: number) => (!duet || i < 0 ? "" : lanes[i] === 1 ? "right" : "left");
 
   /** The latest line that has started; -1 during an intro. */
   const anchor = $derived(synced ? lyrics.activeIndex(player.position) : -1);
@@ -34,7 +48,7 @@
 {#if synced}
   <div
     class="compact-lyrics"
-    use:glass={{ blur: 11, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28, lens: 0.06 }}
+    use:glass={{ blur: 8, saturate: 1.7, brightness: 1.02, bezel: 18, strength: 28, lens: 0.06 }}
   >
     <!-- Keyed on the line index: a new line rises in as the old one sinks
          out. Both live in the same grid cell, so the bar doesn't jump while
@@ -42,7 +56,7 @@
     <div class="stack">
       {#key anchor}
         <div
-          class="now-line"
+          class="now-line {sideOf(anchor)}"
           class:waiting={!current}
           in:fly={{ y: 16, duration: dur(380), delay: dur(60) }}
           out:fly={{ y: -14, duration: dur(260) }}
@@ -50,7 +64,7 @@
           {#if current?.words?.length}
             <!-- One line, no whitespace between spans: word text carries its own
                  spacing, and a newline here would show up as an extra gap. -->
-            {#each current.words as w, i (i)}<span class="word" style="--wp:{wordProgress(w, player.position)};--emph:{emphasis[i] ?? 0}"><span class="word-dim">{w.text}</span><span class="word-lit" aria-hidden="true">{w.text}</span></span>{/each}
+            {#each current.words as w, i (i)}{@const wp = wordProgress(w, player.position)}<span class="word" class:filling={wp > 0 && wp < 1} class:sung={wp >= 1} style="--wp:{wp};--emph:{emphasis[i] ?? 0}"><span class="word-dim">{w.text}</span><span class="word-lit" aria-hidden="true">{w.text}</span></span>{/each}
           {:else if current?.text}
             {current.text}
           {:else}
@@ -62,7 +76,11 @@
     <div class="stack next-stack">
       {#key anchor}
         {#if next?.text}
-          <div class="next-line" in:fade={{ duration: dur(300), delay: dur(120) }} out:fade={{ duration: dur(160) }}>
+          <div
+            class="next-line {sideOf(anchor + 1)}"
+            in:fade={{ duration: dur(300), delay: dur(120) }}
+            out:fade={{ duration: dur(160) }}
+          >
             {next.text}
           </div>
         {/if}
@@ -78,7 +96,7 @@
     border: 1px solid var(--sol-hairline, rgba(255, 255, 255, 0.24));
     /* Same glass as the rest of Solarium — see `.solarium` for the recipe. */
     background: var(--sol-glass, rgba(255, 255, 255, 0.1));
-    backdrop-filter: blur(11px) saturate(1.7) brightness(1.02);
+    backdrop-filter: blur(8px) saturate(1.7) brightness(1.02);
     box-shadow:
       var(--sol-rim, inset 0 1px 0 rgba(255, 255, 255, 0.3)),
       0 20px 50px rgba(10, 3, 8, 0.28);
@@ -105,6 +123,14 @@
   .now-line.waiting {
     opacity: 0.5;
   }
+  /* Singer sides. Absent both classes the line stays centred, which is every
+     song that never names a second vocalist. */
+  .left {
+    text-align: left;
+  }
+  .right {
+    text-align: right;
+  }
   .next-line {
     margin-top: 5px;
     font-size: clamp(13px, 1vw, 16px);
@@ -127,10 +153,19 @@
   .word-dim {
     opacity: 0.44;
   }
+  /* Only the word mid-fill needs a gradient; the rest are simply on or off.
+     See LyricsPanel — masks are the expensive part of a karaoke fill. */
   .word-lit {
     position: absolute;
     left: 0;
     top: 0;
+    opacity: 0;
+  }
+  .word.sung .word-lit {
+    opacity: 1;
+  }
+  .word.filling .word-lit {
+    opacity: 1;
     --feather: calc(var(--lyric-fx-fill-softness, 1) * 6px);
     --edge: calc(var(--wp, 0) * (100% + 2 * var(--feather)) - var(--feather));
     -webkit-mask-image: linear-gradient(
@@ -143,7 +178,6 @@
       #000 calc(var(--edge) - var(--feather)),
       transparent calc(var(--edge) + var(--feather))
     );
-    transition: -webkit-mask-image 60ms linear, mask-image 60ms linear;
   }
   @media (prefers-reduced-motion: reduce) {
     .word {

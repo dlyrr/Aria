@@ -6,7 +6,7 @@
 //! malformed document throws a descriptive error rather than half-loading.
 
 import { parse as parseYaml } from "yaml";
-import type { LyricLine, LyricWord } from "./lyrics.svelte";
+import type { LyricLine, LyricsDoc, LyricWord } from "./lyricsParse";
 
 /** Spec §8: readers must not treat an unknown version as 1.0. */
 const SUPPORTED_VERSION = "1.0";
@@ -14,29 +14,6 @@ const SUPPORTED_VERSION = "1.0";
 /** Spec §10: apply reasonable limits to document size and alias expansion. */
 const MAX_CHARS = 4 * 1024 * 1024;
 const MAX_ALIAS_COUNT = 10;
-
-export interface LyricsFile {
-  title: string;
-  artist: string;
-  album: string;
-  language: string;
-  /** Track duration in seconds, or 0 when the file omits it. */
-  duration: number;
-  instrumental: boolean;
-  /** Sorted by start time. Empty when the file has no synchronized lines. */
-  lines: LyricLine[];
-  /** Unsynchronized fallback lyrics, with line breaks preserved. */
-  plain: string;
-}
-
-/**
- * True for names using the format's `.lyricsfile.yaml` double extension.
- * Tauri's file dialog only filters on the final extension, so plain `.yaml`
- * files are accepted too and validated by content.
- */
-export function isLyricsFileName(name: string): boolean {
-  return name.toLowerCase().endsWith(".lyricsfile.yaml");
-}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -112,7 +89,7 @@ function fillEnds<T extends { t: number; end: number; explicitEnd: boolean }>(
  * `duration` (seconds, 0 if unknown) is only used to bound a trailing line
  * whose `end_ms` was omitted.
  */
-export function parseLyricsFile(text: string, duration = 0): LyricsFile {
+export function parseLyricsFile(text: string, duration = 0): LyricsDoc {
   if (text.length > MAX_CHARS) throw new Error("lyrics file is too large");
 
   // Safe load: no custom tags are resolved, duplicate keys are rejected rather
@@ -155,6 +132,10 @@ export function parseLyricsFile(text: string, duration = 0): LyricsFile {
         explicitEnd,
         text: lineText,
         words: words.length ? words.map(({ t, end, text }) => ({ t, end, text })) : undefined,
+        // Which singer this line belongs to. An extension to the draft spec,
+        // which has no speaker field: readers must ignore keys they don't know
+        // (§8), so a file carrying it stays valid everywhere else.
+        voice: item.voice == null ? undefined : str(item.voice, `${at} voice`) || undefined,
       });
     });
   }
@@ -172,11 +153,11 @@ export function parseLyricsFile(text: string, duration = 0): LyricsFile {
 
   // With no duration to fall back on, a trailing open-ended item is still
   // Infinity here; collapse those to "no end" rather than leaking it to the UI.
-  const finished: LyricLine[] = lines.map(({ t, end, text, words }) => {
+  const finished: LyricLine[] = lines.map(({ t, end, text, words, voice }) => {
     const lineEnd = Number.isFinite(end) ? end : undefined;
     const last = words?.[words.length - 1];
     if (last && !Number.isFinite(last.end)) last.end = lineEnd ?? last.t;
-    return { t, end: lineEnd, text, words };
+    return { t, end: lineEnd, text, words, voice };
   });
 
   return {

@@ -1,28 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { TrackMeta } from "./player.svelte";
-import { isLyricsFileName, parseLyricsFile } from "./lyricsfile";
+import { detectFormat, parseDocument, parseLrc, type LyricLine } from "./lyricsParse";
 export { asideFlags, splitAsides } from "./lyricsAside";
-
-/** One word or segment of a word-synced line. Times are seconds. */
-export interface LyricWord {
-  t: number;
-  end: number;
-  /** Includes the whitespace needed to rebuild the line. */
-  text: string;
-}
-
-export interface LyricLine {
-  t: number;
-  /** End time in seconds, when the source format provides one. */
-  end?: number;
-  text: string;
-  /** Word-level timing, when the source format provides it. */
-  words?: LyricWord[];
-}
+// The line/word model and every format reader live in `lyricsParse` now, so
+// they stay directly testable and can be shared verbatim with the lyrics
+// editor. Re-exported here because this is where the rest of the app looks.
+export type { LyricLine, LyricWord } from "./lyricsParse";
 
 /** How much of `word` has been sung at `position`, as a 0..1 fraction. */
-export function wordProgress(word: LyricWord, position: number): number {
+export function wordProgress(word: { t: number; end: number }, position: number): number {
   if (position <= word.t) return 0;
   if (position >= word.end) return 1;
   const span = word.end - word.t;
@@ -52,62 +39,6 @@ function sigOf(t: TrackMeta): string {
     .join("|");
 }
 
-/** Parse a `HH:MM:SS.mmm` / `MM:SS.mmm` (`.` or `,`) timestamp to seconds. */
-function parseTs(s: string): number | null {
-  const m = s.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$/);
-  if (!m) return null;
-  const h = m[1] ? +m[1] : 0;
-  const min = +m[2];
-  const sec = +m[3];
-  const frac = +`0.${m[4]}`;
-  return h * 3600 + min * 60 + sec + frac;
-}
-
-/** Parse WebVTT (.vtt) or SubRip (.srt) cues into sorted timed lines. */
-function parseCues(text: string): LyricLine[] {
-  const out: LyricLine[] = [];
-  const blocks = text.replace(/^WEBVTT.*$/m, "").split(/\r?\n\r?\n/);
-  for (const block of blocks) {
-    const lines = block.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const tsLine = lines.find((l) => l.includes("-->"));
-    if (!tsLine) continue;
-    const start = tsLine.split("-->")[0].trim().split(" ")[0];
-    const t = parseTs(start);
-    if (t == null) continue;
-    const textLines = lines.filter(
-      (l) => l !== tsLine && !/^\d+$/.test(l) && l.toUpperCase() !== "WEBVTT",
-    );
-    const joined = textLines.join(" ").replace(/<[^>]+>/g, "").trim();
-    out.push({ t, text: joined });
-  }
-  out.sort((a, b) => a.t - b.t);
-  return out;
-}
-
-/** Parse an LRC string into sorted timed lines. */
-function parseLrc(lrc: string): LyricLine[] {
-  const out: LyricLine[] = [];
-  const tag = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
-  for (const raw of lrc.split(/\r?\n/)) {
-    tag.lastIndex = 0;
-    const stamps: number[] = [];
-    let m: RegExpExecArray | null;
-    let lastEnd = 0;
-    while ((m = tag.exec(raw)) !== null) {
-      const min = +m[1];
-      const sec = +m[2];
-      const frac = m[3] ? +`0.${m[3]}` : 0;
-      stamps.push(min * 60 + sec + frac);
-      lastEnd = tag.lastIndex;
-    }
-    if (stamps.length === 0) continue;
-    const text = raw.slice(lastEnd).trim();
-    for (const t of stamps) out.push({ t, text });
-  }
-  out.sort((a, b) => a.t - b.t);
-  return out;
-}
-
 interface OverrideEntry {
   lines: LyricLine[];
   plainText: string;
@@ -124,33 +55,33 @@ interface SidecarLyrics {
 }
 
 /**
- * Build an override entry from a local lyrics file. `extension` is the
- * lowercase suffix; the Lyricsfile format uses the whole `lyricsfile.yaml`
- * double extension.
+ * Build an override entry from a local lyrics file. `name` is the file's name
+ * or path — enough for the double-barrelled extensions (`.santi.lyrics`,
+ * `.lyricsfile.yaml`) to be recognised.
+ *
+ * The contents get the final say, so a sheet saved under the wrong suffix —
+ * LRC in a `.txt`, which is common — still loads as what it actually is.
  */
-function localEntry(text: string, extension: string, duration = 0): OverrideEntry {
-  const ext = extension.toLowerCase();
-
-  if (ext === "lyricsfile.yaml" || ext === "yaml" || ext === "yml") {
-    try {
-      const file = parseLyricsFile(text, duration);
-      return {
-        lines: file.lines,
-        plainText: file.lines.length ? "" : file.plain,
-        synced: file.lines.length > 0,
-        instrumental: file.instrumental,
-      };
-    } catch (e) {
-      return { lines: [], plainText: "", synced: false, error: String(e) };
-    }
+function localEntry(text: string, name: string, duration = 0): OverrideEntry {
+  const lower = name.toLowerCase();
+  // A bare `.yaml` can only be a Lyricsfile here, and saying so up front gets
+  // the format's own validation errors instead of a silent fall back to text.
+  const yaml = lower.endsWith(".yaml") || lower.endsWith(".yml");
+  const format = yaml ? "lyricsfile" : detectFormat(text, lower);
+  try {
+    const doc = parseDocument(text, format, duration);
+    const synced = doc.lines.length > 0;
+    return {
+      lines: doc.lines,
+      plainText: synced ? "" : doc.plain || text,
+      synced,
+      instrumental: doc.instrumental,
+    };
+  } catch (e) {
+    // Only Lyricsfile throws; it validates strictly on purpose, and a file
+    // that fails is reported rather than shown as half its lines.
+    return { lines: [], plainText: "", synced: false, error: String(e) };
   }
-
-  let lines: LyricLine[] = [];
-  if (ext === "lrc") lines = parseLrc(text);
-  else if (ext === "vtt" || ext === "srt") lines = parseCues(text);
-
-  const synced = lines.length > 0;
-  return { lines, plainText: synced ? "" : text, synced };
 }
 
 class Lyrics {
@@ -196,7 +127,9 @@ class Lyrics {
 
   private apply(r: FetchResult) {
     if (r.synced) {
-      this.lines = parseLrc(r.synced);
+      // LRCLIB serves LRC, which since its v2 can carry `<mm:ss.xx>` word
+      // timing — so this picks up karaoke timing from online too.
+      this.lines = parseLrc(r.synced).lines;
       this.plainText = "";
       this.status = this.lines.length ? "synced" : "plain";
       if (!this.lines.length && r.plain) this.plainText = r.plain;
@@ -249,7 +182,11 @@ class Lyrics {
       });
       if (this.currentSig !== sig) return;
       if (sidecar) {
-        this.applyOverride(localEntry(sidecar.text, sidecar.extension, track.duration));
+        // The backend reports which extension it matched; a stand-in name is
+        // all `localEntry` needs to resolve the double-barrelled ones.
+        this.applyOverride(
+          localEntry(sidecar.text, `lyrics.${sidecar.extension}`, track.duration),
+        );
         return;
       }
     } catch (e) {
@@ -301,13 +238,17 @@ class Lyrics {
     const f = await open({
       multiple: false,
       // The dialog matches on the final extension only, so Lyricsfile documents
-      // come in under "yaml" and are recognised by full name below.
-      filters: [{ name: "Lyrics", extensions: ["lyricsfile.yaml", "lrc", "vtt", "srt", "txt", "yaml", "yml"] }],
+      // come in under "yaml" and are recognised by their full name below.
+      filters: [
+        {
+          name: "Lyrics",
+          extensions: ["slyr", "lrc", "vtt", "srt", "txt", "yaml", "yml"],
+        },
+      ],
     });
     if (!f || Array.isArray(f)) return;
     const text = await invoke<string>("read_text_file", { path: f });
-    const ext = isLyricsFileName(f) ? "lyricsfile.yaml" : (f.split(".").pop()?.toLowerCase() ?? "");
-    const entry = localEntry(text, ext, track.duration);
+    const entry = localEntry(text, f, track.duration);
 
     await this.ensureCache();
     this.overrides[track.path] = entry;
@@ -317,6 +258,20 @@ class Lyrics {
       this.overridden = true;
       this.applyOverride(entry);
     }
+  }
+
+  /**
+   * Re-read the current track's lyrics from disk.
+   *
+   * `loadFor` deliberately no-ops on the track it is already showing, so a
+   * sidecar edited in another app — the lyrics editor, saving over the same
+   * file — wouldn't appear until the track changed. This is the one gesture
+   * that says "look again".
+   */
+  async reload(track: TrackMeta | null) {
+    if (!track) return;
+    this.currentSig = "";
+    await this.loadFor(track);
   }
 
   /**

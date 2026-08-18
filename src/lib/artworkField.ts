@@ -270,6 +270,16 @@ export function probeArtworkField() {
 export interface ArtworkField {
   /** Dissolve to a new artwork, or to nothing. Same source is a no-op. */
   setArtwork(src: string | null): void;
+  /**
+   * Hold the field still, or let it drift again.
+   *
+   * The drift is decorative, and it is never free: a background that changes
+   * every frame is a background nothing composited over it can cache. A panel
+   * covering it — lyrics, a queue — is paying that bill for a movement it is
+   * hiding anyway, so it asks for the field to stop while it is up. A
+   * crossfade still runs to completion; only the idle drift is parked.
+   */
+  setHeld(held: boolean): void;
   /** True once something has been drawn — the canvas is blank before that. */
   readonly painted: () => boolean;
   /**
@@ -489,6 +499,10 @@ export function createArtworkField(
   const brightness = Number.isFinite(declared) ? declared / 100 : 0.58;
 
   const stillness = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  /** Set while something on top of the field wants it to stop moving. */
+  let held = false;
+  /** Whether the drift should be running at all right now. */
+  const drifting = () => !held && !stillness?.matches;
 
   let prev: Layer | null = null;
   let next: Layer | null = null;
@@ -557,7 +571,7 @@ export function createArtworkField(
       fadeFrom = 0;
     }
     // A frozen field still needs redrawing while a crossfade is in flight.
-    if (!stillness?.matches || fadeFrom) schedule();
+    if (drifting() || fadeFrom) schedule();
   }
 
   function schedule() {
@@ -587,6 +601,14 @@ export function createArtworkField(
 
   return {
     painted: () => painted,
+
+    setHeld(value: boolean) {
+      if (held === value) return;
+      held = value;
+      // Releasing has to restart the loop; holding lets the in-flight frame
+      // finish and simply doesn't schedule another.
+      if (!held) schedule();
+    },
 
     sampleCentre() {
       if (destroyed || !next) return null;

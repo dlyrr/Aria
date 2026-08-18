@@ -449,7 +449,12 @@
     padding: 4px;
     border: 1px solid rgba(255, 255, 255, 0.18);
     background: var(--immersive-glass);
-    backdrop-filter: blur(28px) saturate(1.35);
+    /* Plain frosting, not `use:glass`. These controls sit over the lyrics,
+       which repaint every frame, so any backdrop above them is re-run every
+       frame too — and an SVG-filter backdrop at that rate is what took this
+       mode down to single-figure frame rates. Kept at Solarium's blur scale so
+       the two immersive modes still frost the same amount. */
+    backdrop-filter: blur(6px) saturate(1.35);
     box-shadow: 0 12px 35px rgba(25, 8, 17, 0.2);
   }
   .panel-toggle button {
@@ -495,7 +500,7 @@
     color: rgba(255, 255, 255, 0.78);
     border: 1px solid rgba(255, 255, 255, 0.18);
     background: var(--immersive-glass);
-    backdrop-filter: blur(28px) saturate(1.35);
+    backdrop-filter: blur(9px) saturate(1.35);
     box-shadow: 0 12px 35px rgba(25, 8, 17, 0.2);
     transition:
       background 180ms ease,
@@ -526,7 +531,7 @@
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.18);
     background: rgba(28, 16, 24, 0.82);
-    backdrop-filter: blur(28px) saturate(1.35);
+    backdrop-filter: blur(6px) saturate(1.35);
     box-shadow: 0 16px 45px rgba(15, 5, 10, 0.35);
   }
   .menu-item {
@@ -562,7 +567,7 @@
     color: #fff;
     border: 1px solid rgba(255, 255, 255, 0.16);
     background: var(--immersive-glass);
-    backdrop-filter: blur(28px);
+    backdrop-filter: blur(9px) saturate(1.35);
     transition:
       background 180ms ease,
       transform 220ms var(--motion-spring);
@@ -815,6 +820,15 @@
     --lyric-glow: 0 0 22px rgba(255, 255, 255, 0.45);
     text-align: left;
     transform-origin: left center;
+  }
+  /* A line belonging to the second singer reads from the right, so a duet is
+     visibly two voices rather than one list. Written with `.offset` in the
+     selector on purpose: the rule above and the panel's own `.line.offset`
+     land on the same specificity, so without this the winner is decided by
+     which component's CSS the bundler emits last. */
+  .lyrics-stage :global(.line.offset) {
+    text-align: right;
+    transform-origin: right center;
   }
   .lyrics-stage :global(.line.active) {
     color: #fff;

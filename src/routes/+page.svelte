@@ -110,12 +110,18 @@
 
 <svelte:window bind:innerWidth={viewportWidth} />
 
-<div class="app">
+<!-- `inert` while immersive is up: it covers the window completely, so nothing
+     underneath should be reachable by the keyboard or a screen reader either. -->
+<div class="app" class:behind={ui.immersive} inert={ui.immersive || undefined}>
   <Titlebar />
   <!-- Skins without a colour field paint nothing here, so the layer is left out
        entirely rather than rendered at zero opacity — four blurred, animating
-       blobs are not free. -->
-  {#if theme.artworkField}
+       blobs are not free.
+
+       Dropped outright under immersive, which paints a field of its own: this
+       is a full-screen WebGL shader redrawing every frame, and two of them
+       running at once is two of them competing for the same frame. -->
+  {#if theme.artworkField && !ui.immersive}
     <!-- One long-lived layer, not one per track: the field dissolves between
          artworks inside the shader, and remounting it would throw away the
          WebGL context (and the outgoing texture) on every track change. -->
@@ -164,6 +170,19 @@
        backdrop is active (Mica/Acrylic, or Mica For Everyone), i.e. when
        something really is compositing behind the window. */
     background: var(--app-base);
+  }
+  /**
+   * Immersive is an overlay, not a route: the whole window stays mounted and,
+   * without this, stays *painting* — the track list, the chrome, every
+   * backdrop-filter in it — behind a screen you can't see any of it through.
+   * That was the difference between a smooth window and a stuttering immersive.
+   *
+   * `content-visibility`, not `display: none`: the subtree keeps its layout and
+   * scroll state, so leaving immersive doesn't drop you at the top of the list
+   * you were halfway down.
+   */
+  .app.behind {
+    content-visibility: hidden;
   }
   .background-stack,
   .background-frame {

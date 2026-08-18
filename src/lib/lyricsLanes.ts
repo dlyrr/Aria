@@ -5,6 +5,8 @@
 //! side makes it obvious they are concurrent — the treatment Apple Music uses
 //! for call-and-response and doubled vocals.
 
+import { voiceOrder } from "./lyricsParse";
+
 /**
  * How much overlap counts as genuinely concurrent, in seconds.
  *
@@ -15,9 +17,40 @@
  */
 const MIN_OVERLAP = 0.35;
 
+/**
+ * Which side each singer sings from.
+ *
+ * Numbered labels go first and take the side their number names, so "Singer 2"
+ * — or `@2` in a santi.lyrics file — is on the right whoever else is in the
+ * song, and marking singer one later never flips it. Named singers then fill
+ * whatever side is still free, which keeps a "Singer 2" duetting with a
+ * "Harmony" on opposite sides rather than stacked on the same one.
+ */
+function voiceSides(order: string[]): Map<string, number> {
+  const sides = new Map<string, number>();
+  const taken = new Set<number>();
+  for (const voice of order) {
+    const numbered = voice.match(/(\d+)\s*$/);
+    if (!numbered) continue;
+    const side = (Math.max(1, +numbered[1]) - 1) % 2;
+    sides.set(voice, side);
+    taken.add(side);
+  }
+  let spare = 0;
+  for (const voice of order) {
+    if (sides.has(voice)) continue;
+    const side = !taken.has(0) ? 0 : !taken.has(1) ? 1 : spare++ % 2;
+    sides.set(voice, side);
+    taken.add(side);
+  }
+  return sides;
+}
+
 interface Spanned {
   t: number;
   end?: number;
+  /** Singer label, when the source names one. */
+  voice?: string;
 }
 
 /**
@@ -28,13 +61,27 @@ interface Spanned {
  * line would visibly jump sides mid-phrase; this way its side is fixed for the
  * whole song and only the highlight moves.
  *
- * A line overlapping its predecessor takes the opposite lane, so a chain of
- * overlaps alternates rather than piling everything on one side. Anything that
- * starts cleanly after the previous line ends resets to the left.
+ * Two sources, in order:
+ *
+ * 1. An explicit singer. Where the file says who sings a line — a santi.lyrics
+ *    `@2`, a WebVTT `<v Name>`, a Lyricsfile `voice`, an LRC `v2:` prefix — the
+ *    singer decides the side, and it no longer depends on how the line happens
+ *    to be timed. This is what makes a duet read as a duet even in the stretches
+ *    where the two singers never actually overlap.
+ * 2. Failing that, overlap. A line overlapping its predecessor takes the
+ *    opposite lane, so a chain of overlaps alternates rather than piling
+ *    everything on one side. Anything that starts cleanly after the previous
+ *    line ends resets to the left.
  */
 export function alignmentLanes(lines: Spanned[]): number[] {
+  const sides = voiceSides(voiceOrder(lines));
   const lanes: number[] = [];
   for (let i = 0; i < lines.length; i++) {
+    const voice = lines[i].voice;
+    if (voice) {
+      lanes.push(sides.get(voice) ?? 0);
+      continue;
+    }
     const prev = lines[i - 1];
     if (!prev) {
       lanes.push(0);

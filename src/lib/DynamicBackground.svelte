@@ -9,11 +9,24 @@
     // if you know which of the three (window, immersive, artist page) it was.
     label = "field",
     saturation = 1.22,
+    still = false,
   }: {
     art?: string | null;
     palette: ArtworkPalette;
     label?: string;
     saturation?: number;
+    /**
+     * Hold the drift.
+     *
+     * A background that changes every frame is one that nothing composited
+     * over it can cache: a pane's frosting has to be recomputed every frame
+     * for movement the pane is largely covering. Solarium used this while a
+     * glass card was open and it did buy frames — but the still backdrop was
+     * the wrong trade, so nothing sets it today. Left here because it is the
+     * one lever that makes a covering pane cheap, and re-enabling it is one
+     * attribute.
+     */
+    still?: boolean;
   } = $props();
 
   const paletteStyle = $derived(
@@ -102,6 +115,12 @@
     check();
     return () => cancelAnimationFrame(raf);
   });
+
+  // Park the shader while something is covering it. Separate from the effect
+  // that builds the field, so toggling a panel never rebuilds the context.
+  $effect(() => {
+    field?.setHeld(still);
+  });
 </script>
 
 <!-- Every layer here is made of the cover, so with nothing playing there is
@@ -109,7 +128,7 @@
      plain theme surface (see `html[data-idle]` in app.css) rather than a
      gradient standing in for artwork that isn't there. -->
 {#if art}
-  <div class="dynamic-background" style={paletteStyle}>
+  <div class="dynamic-background" class:still style={paletteStyle}>
     {#if !unsupported}
       <!-- The cover, crushed to a few dozen pixels and stretched back out: the
            hardware's own interpolation is the blur, and a noise warp keeps it
@@ -136,6 +155,11 @@
 {/if}
 
 <style>
+  /* The CSS fallback's layers drift on their own animations; hold those too,
+     for the same reason the shader is held. */
+  .dynamic-background.still :global(*) {
+    animation-play-state: paused;
+  }
   .dynamic-background {
     position: absolute;
     inset: 0;

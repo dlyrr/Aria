@@ -81,6 +81,7 @@
   // painted right across the stage and the cards' glass blurs whatever ends up
   // under them, so the crop can straddle the join without a seam.
   const freeW = $derived(Math.max(0, stageW - (lyricsSide || queueSide ? sideW : 0)));
+
   const frameLeft = $derived((freeW - frameW) / 2);
 
   /** Lightness map of the current cover; null until it has loaded. */
@@ -278,7 +279,7 @@
             class="card lyrics-card"
             aria-label="Lyrics"
             data-ink={sideInk}
-            use:glass={{ blur: 16, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40, lens: 0.055 }}
+            use:glass={{ blur: 11, saturate: 1.7, brightness: 0.98, bezel: 30, strength: 40, lens: 0.055, dispersion: 0 }}
             transition:fade={{ duration: 220 }}
           >
             <LyricsPanel />
@@ -289,7 +290,7 @@
             class="card queue-card"
             aria-label="Play queue"
             data-ink={sideInk}
-            use:glass={{ blur: 16, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40, lens: 0.055 }}
+            use:glass={{ blur: 11, saturate: 1.7, brightness: 0.94, bezel: 30, strength: 40, lens: 0.055, dispersion: 0 }}
             transition:fade={{ duration: 220 }}
           >
             <SolariumQueue variant="side" />
@@ -313,7 +314,7 @@
       aria-label="Play queue"
       style="left:{freeW / 2}px"
       data-ink={floatInk}
-      use:glass={{ blur: 18, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38, lens: 0.055 }}
+      use:glass={{ blur: 12, saturate: 1.7, brightness: 0.9, bezel: 28, strength: 38, lens: 0.055, dispersion: 0 }}
       transition:fade={{ duration: 200 }}
     >
       <SolariumQueue variant="float" />
@@ -329,7 +330,7 @@
       class="view-toggle"
       role="group"
       aria-label="Layout"
-      use:glass={{ blur: 8, saturate: 1.6, bezel: 12, strength: 22, lens: 0.07 }}
+      use:glass={{ blur: 6, saturate: 1.6, bezel: 12, strength: 22, lens: 0.07 }}
       transition:fade={{ duration: 160 }}
     >
       <button
@@ -370,7 +371,7 @@
   <div
     class="transport"
     data-ink="light"
-    use:glass={{ blur: 6, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26, lens: 0.05 }}
+    use:glass={{ blur: 4, saturate: 1.6, brightness: 1.02, bezel: 18, strength: 26, lens: 0.05 }}
   >
     <div class="left-cluster">
       <button
@@ -481,7 +482,7 @@
         {#if volumeOpen}
           <div
             class="pop volume-pop"
-            use:glass={{ blur: 9, saturate: 1.6, bezel: 12, strength: 20, lens: 0.07 }}
+            use:glass={{ blur: 6, saturate: 1.6, bezel: 12, strength: 20, lens: 0.07 }}
             transition:fade={{ duration: 120 }}
           >
             <div class="track volume" style="--pct:{volPct}%">
@@ -549,7 +550,7 @@
         {#if speedOpen}
           <div
             class="pop speed-pop"
-            use:glass={{ blur: 9, saturate: 1.6, bezel: 14, strength: 22, lens: 0.07 }}
+            use:glass={{ blur: 6, saturate: 1.6, bezel: 14, strength: 22, lens: 0.07 }}
             transition:fade={{ duration: 120 }}
           >
             <div class="pop-head">
@@ -598,7 +599,7 @@
       class="gear"
       title="Appearance"
       aria-label="Appearance"
-      use:glass={{ blur: 12, saturate: 1.6, bezel: 14, strength: 22 }}
+      use:glass={{ blur: 9, saturate: 1.6, bezel: 14, strength: 22 }}
       onclick={() => onappearance()}
       transition:fade={{ duration: 160 }}
     >
@@ -778,7 +779,7 @@
     background: var(--sol-glass);
     /* Baseline frosting; `use:glass` replaces this inline with the same blur
        plus the refracting rim, and if it can't, this is what you get. */
-    backdrop-filter: blur(16px) saturate(1.7) brightness(0.98);
+    backdrop-filter: blur(11px) saturate(1.7) brightness(0.98);
     box-shadow:
       var(--sol-rim),
       0 30px 80px rgba(10, 3, 8, 0.28);
@@ -799,7 +800,7 @@
     bottom: 118px;
     transform: translateX(-50%);
     width: min(560px, 90vw);
-    backdrop-filter: blur(18px) saturate(1.7) brightness(0.9);
+    backdrop-filter: blur(12px) saturate(1.7) brightness(0.9);
   }
 
   .lyrics-card :global(.lyrics) {
@@ -831,9 +832,18 @@
     text-align: left;
     transform-origin: left center;
   }
+  /* A lane inferred from overlapping timings stays left here: on a card this
+     narrow, throwing half the lines to the far side on a guess reads as a
+     layout fault rather than as two voices. */
   .lyrics-card :global(.line.offset) {
     text-align: left;
     transform-origin: left center;
+  }
+  /* A named singer is not a guess, so that split is honoured — this is the
+     duet the file actually says it is. */
+  .lyrics-card :global(.line.offset.voiced) {
+    text-align: right;
+    transform-origin: right center;
   }
   .lyrics-card :global(.line.active) {
     color: var(--sol-ink);
@@ -877,7 +887,7 @@
     border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(8px) saturate(1.6);
+    backdrop-filter: blur(6px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 12px 34px rgba(12, 4, 10, 0.24);
@@ -915,7 +925,7 @@
     border-radius: 999px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(6px) saturate(1.6) brightness(1.02);
+    backdrop-filter: blur(4px) saturate(1.6) brightness(1.02);
     box-shadow:
       var(--sol-rim),
       0 20px 54px rgba(12, 4, 10, 0.3);
@@ -985,11 +995,13 @@
     border-radius: 15px;
     overflow: hidden;
     /* The one dark thing on the pill: the record sits *in* the glass, so it's
-       cut deeper than the surface around it. */
-    background: rgba(10, 4, 9, 0.28);
+       cut deeper than the surface around it. Only just, though — cut too deep
+       it stops reading as a recess in the glass and starts reading as a black
+       bar laid over the artwork. */
+    background: rgba(10, 4, 9, 0.14);
     box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.26),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+      inset 0 1px 2px rgba(0, 0, 0, 0.15),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.07);
   }
   .now-meta {
     flex: 1;
@@ -1120,7 +1132,7 @@
     border-radius: 18px;
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass-strong);
-    backdrop-filter: blur(9px) saturate(1.6);
+    backdrop-filter: blur(6px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 16px 40px rgba(10, 3, 8, 0.34);
@@ -1205,7 +1217,9 @@
     color: rgba(255, 255, 255, 0.85);
     border: 1px solid var(--sol-hairline);
     background: var(--sol-glass);
-    backdrop-filter: blur(8px) saturate(1.6);
+    /* Matches the `use:glass` call on this button — the two had drifted apart,
+       so the fallback was frosting harder than the real thing. */
+    backdrop-filter: blur(9px) saturate(1.6);
     box-shadow:
       var(--sol-rim),
       0 14px 36px rgba(12, 4, 10, 0.26);

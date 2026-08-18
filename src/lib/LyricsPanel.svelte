@@ -1,5 +1,6 @@
 <script lang="ts">
   import { lyrics, wordProgress } from "$lib/lyrics.svelte";
+  import LyricDots from "$lib/LyricDots.svelte";
   import { asideRuns, asideTextRuns, rowTexts } from "$lib/lyricsAside";
   import { alignmentLanes } from "$lib/lyricsLanes";
   import { lyricsStyle, HOLD_BASE_SECONDS } from "$lib/lyricsStyle.svelte";
@@ -116,6 +117,49 @@
     }
     return byLine;
   });
+
+  /**
+   * A silence long enough to be an interlude rather than a breath between
+   * lines. Below this the dots would flash up between every couplet.
+   */
+  const GAP_MIN = 4;
+
+  /**
+   * The instrumental being counted through, if any. Two ways to get one:
+   *
+   * - An authored break — a timed line with no words at all, which is how
+   *   santi.lyrics writes an intro or a solo. It sits in the list where it
+   *   belongs, so the dots do too.
+   * - Any long enough silence: before the first line, or between two lines
+   *   where the earlier one has a real end. Only formats that carry ends can
+   *   produce this, which is why an LRC sheet never shows dots — in LRC a line
+   *   runs until the next one and there is no silence to find.
+   */
+  const interlude = $derived.by(() => {
+    if (lyrics.status !== "synced") return null;
+    for (const i of active) {
+      const line = lyrics.lines[i];
+      if (line && !line.text.trim() && !line.words?.length) {
+        return { at: i, authored: true, from: line.t, to: line.end ?? lyrics.lines[i + 1]?.t ?? line.t };
+      }
+    }
+    if (active.size) return null;
+    const next = lyrics.lines[anchor + 1];
+    if (!next) return null;
+    const prev = anchor >= 0 ? lyrics.lines[anchor] : null;
+    const from = prev ? (prev.end ?? prev.t) : 0;
+    if (next.t - from < GAP_MIN) return null;
+    return { at: anchor + 1, authored: false, from, to: next.t };
+  });
+
+  const countdown = $derived(
+    interlude
+      ? Math.max(
+          0,
+          Math.min(1, (player.position - interlude.from) / Math.max(0.001, interlude.to - interlude.from)),
+        )
+      : 0,
+  );
 </script>
 
 <div class="lyrics" class:compact bind:this={container}>
@@ -126,11 +170,17 @@
   {:else if lyrics.status === "synced"}
     <div class="synced">
       {#each lyrics.lines as line, i (i)}
+        <!-- A silence with no line of its own to sit in: the dots stand where
+             the line that ends it will appear. -->
+        {#if interlude && !interlude.authored && interlude.at === i}
+          <div class="interlude"><LyricDots progress={countdown} /></div>
+        {/if}
         <button
           class="line"
           class:active={active.has(i)}
           class:past={i < anchor && !active.has(i)}
           class:offset={lanes[i] === 1}
+          class:voiced={!!line.voice}
           data-i={i}
           style="--d:{depth(i)}"
           onclick={() => seekTo(line.t)}
@@ -143,7 +193,7 @@
                  as extra gaps, since word text carries its own spacing. -->
             {#each asideRuns(line.words) as row, r (r)}
               {@const rt = rowTexts(row.indices.map((w) => line.words![w].text))}
-              <span class="line-row" class:aside-row={row.aside}>{#each row.indices as w, k (w)}<span class="word" style="--wp:{wordProgress(line.words[w], player.position)};--emph:{emph[w] ?? 0}"><span class="word-dim">{rt[k]}</span><span class="word-glow" aria-hidden="true"><span class="word-lit">{rt[k]}</span></span></span>{/each}</span>
+              <span class="line-row" class:aside-row={row.aside}>{#each row.indices as w, k (w)}{@const wp = wordProgress(line.words[w], player.position)}{@const em = emph[w] ?? 0}<span class="word" class:filling={wp > 0 && wp < 1} class:sung={wp >= 1} class:held={em > 0.02} style="--wp:{wp};--emph:{em}"><span class="word-dim">{rt[k]}</span><span class="word-glow" aria-hidden="true"><span class="word-lit">{rt[k]}</span></span></span>{/each}</span>
             {/each}
           {:else if line.text}
             <!-- Same row split on unsung lines, so a line doesn't visibly
@@ -151,6 +201,8 @@
             {#each asideTextRuns(line.text) as row, r (r)}
               <span class="line-row" class:aside-row={row.aside}>{row.text}</span>
             {/each}
+          {:else if interlude?.authored && interlude.at === i}
+            <LyricDots progress={countdown} />
           {:else}
             ♪
           {/if}
@@ -221,16 +273,29 @@
     flex-direction: column;
     gap: 6px;
   }
+  /* Sits where the coming line will, at the lit line's brightness — it is the
+     thing happening now, not an upcoming one. */
+  .interlude {
+    padding: 10px 10px 4px;
+    font-size: 26px;
+    color: currentColor;
+    opacity: var(--lyric-lit, 1);
+  }
+  .compact .interlude {
+    font-size: 20px;
+    text-align: center;
+  }
   .line {
     /* Per-context knobs. Surfaces that host this panel set these rather than
        `opacity` directly, so the distance ramp below keeps working. */
     --lyric-dim: 0.34;
-    /* A line that has been sung is gone: the view reads as what's coming, not
-       as a transcript with a marker in it. Hovering the panel brings them back
-       (see `.lyrics:hover` below) so looking up an earlier line is still one
-       gesture away. */
-    --lyric-past: 0;
-    --lyric-past-hover: 0.2;
+    /* A sung line stays on screen here, a little below the unsung ones. This
+       panel is where you read along and look back — the full-screen surfaces
+       are the ones that clear out behind the music, and they set their own
+       `--lyric-past: 0` to do it. Hovering the panel lifts them further, so a
+       line you mean to click is unambiguous. */
+    --lyric-past: 0.28;
+    --lyric-past-hover: 0.42;
     --lyric-lit: 1;
     --lyric-blur-step: 0.5px;
     --lyric-glow: none;
@@ -267,7 +332,11 @@
   }
   /* A line that overlaps the one before it sits on the opposite side, so two
      concurrent lines read as concurrent rather than as one replacing the
-     other. Both stay on screen for as long as they are sounding. */
+     other. Both stay on screen for as long as they are sounding.
+     `.voiced` marks the lines whose side came from a named singer rather than
+     from overlapping timings — a fact, not an inference. Surfaces too narrow
+     to justify splitting on a guess (Solarium's card) use it to honour the
+     one and ignore the other. */
   .line.offset {
     text-align: right;
     transform-origin: right center;
@@ -354,13 +423,31 @@
     left: 0;
     top: 0;
     pointer-events: none;
+  }
+  /* Only the words actually held long enough to swell carry a filter. A
+     `drop-shadow` costs a raster pass whether or not its radius is zero, and
+     a line is mostly ordinary words — paying for all of them, every frame,
+     is what a big lyric surface cannot afford. */
+  .word.held .word-glow {
     filter: drop-shadow(
       0 0 calc(var(--emph, 0) * var(--lyric-fx-glow, 1) * 9px)
         rgba(255, 255, 255, calc(var(--emph, 0) * var(--lyric-fx-glow, 1) * 0.42))
     );
   }
+
+  /* The lit copy is simply hidden until its word starts, and simply shown once
+     it is done. Only the one word mid-fill needs a gradient — masks are the
+     expensive part, and at any instant exactly one word in a line is between
+     0 and 1. */
   .word-lit {
     display: block;
+    opacity: 0;
+  }
+  .word.sung .word-lit {
+    opacity: 1;
+  }
+  .word.filling .word-lit {
+    opacity: 1;
 
     /* Karaoke fill. A mask rather than a clip rect, so Fill Softness can
        feather the edge; at 0 the two stops coincide and it is a hard cut.
@@ -378,16 +465,13 @@
       #000 calc(var(--edge) - var(--feather)),
       transparent calc(var(--edge) + var(--feather))
     );
-
-    /* Position ticks arrive ~30x a second; this bridges the gap between them. */
-    transition: -webkit-mask-image 60ms linear, mask-image 60ms linear;
+    /* No transition: the playhead is carried forward every animation frame
+       now, so the fill is already at the display's rate. Interpolating the
+       gradient on top of that only added cost and a frame of lag. */
   }
   @media (prefers-reduced-motion: reduce) {
-    .word,
-    .word-lit {
-      transition: none;
-    }
     .word {
+      transition: none;
       transform: none;
     }
   }

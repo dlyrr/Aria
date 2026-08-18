@@ -27,6 +27,11 @@
         <button class="pill-btn" onclick={() => lyrics.importFile(player.current)}>
           Import Lyrics…
         </button>
+        <!-- Lyrics are only read when the track changes, so a sheet edited in
+             another app needs a way to say "look again". -->
+        <button class="pill-btn" onclick={() => lyrics.reload(player.current)}>
+          Reload from file
+        </button>
         {#if lyrics.overridden}
           <button class="pill-btn" onclick={() => lyrics.removeOverride(player.current)}>
             Use LRCLIB
