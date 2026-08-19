@@ -191,16 +191,9 @@
        in percentages of this box precisely so that narrowing it re-projects
        the whole room instead of cropping a picture of it. -->
   <div class="stage">
-    {#if theme.artworkField}
-      <div class="field" aria-hidden="true">
-        <DynamicBackground
-          art={backdrop.art}
-          palette={backdrop.palette}
-          label="spectrum"
-          saturation={1.9}
-        />
-      </div>
-    {/if}
+    <!-- The colour field is hoisted to Immersive.svelte: it has to fill the
+         window rather than this mode, or the settings dock has nothing behind
+         it once the stage is shifted aside. -->
 
     <!-- Sky and ground are one job split in two: the field is a warm blur with
          no structure, and it only becomes a sunset once something says which
@@ -527,13 +520,6 @@
     right: var(--side);
   }
 
-  .field {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
 
   .sky {
     position: absolute;

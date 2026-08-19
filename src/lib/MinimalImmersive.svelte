@@ -124,16 +124,9 @@
   <!-- Exactly Solarium's field, at Solarium's saturation: the same picture
        blown up until it is only colour. It is the entire backdrop here, so
        nothing is layered on top of it that would need to blur it. -->
-  {#if theme.artworkField}
-    <div class="field" aria-hidden="true">
-      <DynamicBackground
-        art={backdrop.art}
-        palette={backdrop.palette}
-        label="minimal"
-        saturation={1.9}
-      />
-    </div>
-  {/if}
+    <!-- The colour field is hoisted to Immersive.svelte: it has to fill the
+         window rather than this mode, or the settings dock has nothing behind
+         it once the stage is shifted aside. -->
 
   <!-- One flat gradient, no filter. The field is warm and busy near the middle;
        this pushes the corners down so the cover is the brightest thing on
@@ -430,13 +423,6 @@
     color: var(--min-text);
   }
 
-  .field {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
   .hush {
     position: absolute;
     inset: 0;

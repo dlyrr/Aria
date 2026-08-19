@@ -10,6 +10,8 @@
   import MinimalImmersive from "$lib/MinimalImmersive.svelte";
   import SpectrumDeck from "$lib/SpectrumDeck.svelte";
   import ImmersiveChrome from "$lib/ImmersiveChrome.svelte";
+  import DynamicBackground from "$lib/DynamicBackground.svelte";
+  import { theme } from "$lib/theme.svelte";
   import { immersiveStyle } from "$lib/immersiveStyle.svelte";
   import { ui } from "$lib/ui.svelte";
   import type { ArtworkPalette } from "$lib/accent";
@@ -40,6 +42,25 @@
   `transform` on this wrapper also gives the mode's `position: fixed` children a
   containing block, so they scale with it instead of escaping to the viewport.
 -->
+<!--
+  The colour field belongs to the window, not to the mode.
+
+  Every mode used to carry its own, which was fine while a mode filled the
+  screen — and wrong the moment the stage could be shifted aside, because the
+  field went with it and left the settings dock sitting on bare black. One
+  field, behind everything, and the stage floats on it.
+-->
+{#if theme.artworkField}
+  <div class="immersive-field" aria-hidden="true">
+    <DynamicBackground
+      art={backdrop.art}
+      palette={backdrop.palette}
+      label="immersive"
+      saturation={1.9}
+    />
+  </div>
+{/if}
+
 <div class="immersive-stage" class:aside={ui.immersiveSidebar}>
   {#if immersiveStyle.mode === "solarium"}
     <Solarium {backdrop} onappearance={open} />
@@ -61,6 +82,17 @@
 />
 
 <style>
+  .immersive-field {
+    position: fixed;
+    inset: 0;
+    z-index: 59;
+    overflow: hidden;
+    pointer-events: none;
+    /* Black underneath, so the field's own gaps and the margin around a
+       shifted stage are the same colour rather than whatever the app was
+       showing before immersive opened. */
+    background: #05020a;
+  }
   .immersive-stage {
     position: fixed;
     inset: 0;
@@ -72,9 +104,10 @@
   }
   .immersive-stage.aside {
     /* Clears the 480px dock and leaves a margin the artwork can breathe in. */
-    transform: translateX(260px) scale(0.74);
-    border-radius: 20px;
+    transform: translateX(228px) scale(0.78);
+    border-radius: 22px;
     overflow: hidden;
+    box-shadow: 0 40px 120px rgba(4, 1, 7, 0.5);
   }
 
   @media (prefers-reduced-motion: reduce) {

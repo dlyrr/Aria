@@ -108,25 +108,9 @@
   class:has-panel={ui.panel !== "none"}
   transition:fade={{ duration: 260 }}
 >
-  <!-- Same layer as the main window, and the same reason it isn't keyed: the
-       artwork dissolves inside the field. A fixed-palette skin paints no colour
-       field, so the whole stack is left out rather than rendered at zero
-       opacity. -->
-  {#if theme.artworkField}
-    <div class="background-stack" aria-hidden="true">
-      <div class="background-frame">
-        <!-- Richer than the window's field: nothing is layered over this one,
-             so the colour has to carry the whole screen rather than sit under
-             a library. -->
-        <DynamicBackground
-          art={backdrop.art}
-          palette={backdrop.palette}
-          label="immersive"
-          saturation={1.75}
-        />
-      </div>
-    </div>
-  {/if}
+  <!-- The colour field is hoisted to Immersive.svelte: it has to fill the
+       window rather than this mode, or the settings dock has nothing behind it
+       once the stage is shifted aside. -->
   <div class="scrim"></div>
 
   {#if !idle}
@@ -405,20 +389,6 @@
   .immersive.idle {
     cursor: none;
   }
-  /* Mirrors the main window's stack so both surfaces composite identically. */
-  .background-stack,
-  .background-frame {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-  .background-stack {
-    overflow: hidden;
-  }
-  .background-frame {
-    animation: background-arrive 720ms var(--motion-spring-strong) both;
-  }
   /* Svelte scopes keyframes per component, so this is redeclared here rather
      than inherited from the copy in +page.svelte. */
   @keyframes background-arrive {
@@ -430,9 +400,6 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .background-frame {
-      animation: none;
-    }
   }
   .scrim {
     position: absolute;

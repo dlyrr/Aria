@@ -241,16 +241,9 @@
 <div class="solarium" class:idle style={tint} transition:fade={{ duration: 260 }}>
   <!-- The field and the artwork are the same picture at two scales: one blown
        up until it is only colour, one still readable. -->
-  {#if theme.artworkField}
-    <div class="field" aria-hidden="true">
-      <DynamicBackground
-        art={backdrop.art}
-        palette={backdrop.palette}
-        label="solarium"
-        saturation={1.9}
-      />
-    </div>
-  {/if}
+    <!-- The colour field is hoisted to Immersive.svelte: it has to fill the
+         window rather than this mode, or the settings dock has nothing behind
+         it once the stage is shifted aside. -->
 
   <div class="stage" bind:clientWidth={stageW} bind:clientHeight={stageH}>
     {#if art}
@@ -673,13 +666,6 @@
   }
   .solarium.idle {
     cursor: none;
-  }
-  .field {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
   }
   /* Black on a pale record, white on a dark one. `--sol-ink` is what every
      piece of type in a pane is set in, so flipping it here flips them all. */

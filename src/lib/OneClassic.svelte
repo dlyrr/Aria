@@ -114,16 +114,9 @@
   <!-- The same field Solarium paints, at the same saturation: this mode has no
        full-bleed crop of its own, so the colour is the only thing standing
        between a framed square and a black screen. -->
-  {#if theme.artworkField}
-    <div class="field" aria-hidden="true">
-      <DynamicBackground
-        art={backdrop.art}
-        palette={backdrop.palette}
-        label="classic"
-        saturation={1.9}
-      />
-    </div>
-  {/if}
+    <!-- The colour field is hoisted to Immersive.svelte: it has to fill the
+         window rather than this mode, or the settings dock has nothing behind
+         it once the stage is shifted aside. -->
 
   <div class="window-chrome">
     <WindowControls fullscreenAware />
@@ -402,13 +395,6 @@
     isolation: isolate;
     background: var(--bg-deep);
     color: var(--cl-text);
-  }
-  .field {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
   }
 
   .window-chrome {

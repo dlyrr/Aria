@@ -473,16 +473,19 @@
   .appearance {
     position: fixed;
     z-index: 2147483647;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 480px;
-    max-width: min(92vw, 480px);
+    /* A card floating on the field, not a slab bolted to the edge. Full height
+       made it the tallest thing on screen and gave it a hard edge against the
+       window frame; inset on all four sides it reads as another pane in the
+       same room as the stage, and the colour field runs behind and around it. */
+    left: 22px;
+    top: 16vh;
+    bottom: 16vh;
+    width: 452px;
+    max-width: min(92vw, 452px);
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* Clear of the traffic lights and the button cluster above it. */
-    padding: 96px 18px 24px;
-    border-radius: 0 22px 22px 0;
+    padding: 18px;
+    border-radius: 22px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background:
       linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.06)),
