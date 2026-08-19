@@ -26,7 +26,6 @@
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import SolariumQueue from "$lib/SolariumQueue.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import WindowControls from "$lib/WindowControls.svelte";
   import ImmersiveBrowser from "$lib/ImmersiveBrowser.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
@@ -118,9 +117,6 @@
          window rather than this mode, or the settings dock has nothing behind
          it once the stage is shifted aside. -->
 
-  <div class="window-chrome">
-    <WindowControls fullscreenAware />
-  </div>
 
   <main class="stage">
     <!-- Positioned once and moved with `transform` alone. Animating `left`
@@ -397,12 +393,6 @@
     color: var(--cl-text);
   }
 
-  .window-chrome {
-    position: absolute;
-    z-index: 7;
-    top: 26px;
-    left: 26px;
-  }
 
   /* Everything above the bar. It is a positioning context and nothing else —
      the two children place themselves, because a grid would have to reflow to

@@ -21,7 +21,6 @@
   import CompactLyrics from "$lib/CompactLyrics.svelte";
   import SolariumQueue from "$lib/SolariumQueue.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import WindowControls from "$lib/WindowControls.svelte";
   import ImmersiveBrowser from "$lib/ImmersiveBrowser.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
@@ -315,9 +314,6 @@
   {/if}
 
   {#if !idle}
-    <div class="window-chrome" transition:fade={{ duration: 160 }}>
-      <WindowControls fullscreenAware />
-    </div>
 
     <div
       class="view-toggle"
@@ -859,12 +855,6 @@
     bottom: 108px;
   }
 
-  .window-chrome {
-    position: absolute;
-    z-index: 7;
-    top: 26px;
-    left: 26px;
-  }
   .view-toggle {
     position: absolute;
     z-index: 6;

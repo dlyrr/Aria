@@ -13,7 +13,6 @@
   import ArtistLink from "$lib/ArtistLink.svelte";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import WindowControls from "$lib/WindowControls.svelte";
   import ImmersiveBrowser from "$lib/ImmersiveBrowser.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
   import { theme } from "$lib/theme.svelte";
@@ -114,9 +113,6 @@
   <div class="scrim"></div>
 
   {#if !idle}
-    <div class="window-chrome" transition:fade={{ duration: 160 }}>
-      <WindowControls fullscreenAware />
-    </div>
 
     <div class="menu-wrap" transition:fade={{ duration: 160 }}>
       <button
@@ -444,12 +440,6 @@
   .panel-toggle button.selected {
     color: #fff;
     background: rgba(255, 255, 255, 0.16);
-  }
-  .window-chrome {
-    position: absolute;
-    top: 34px;
-    left: 32px;
-    z-index: 7;
   }
   .menu-wrap {
     position: absolute;

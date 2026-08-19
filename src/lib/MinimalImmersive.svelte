@@ -24,7 +24,6 @@
   import Artwork from "$lib/Artwork.svelte";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import WindowControls from "$lib/WindowControls.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
 
@@ -198,9 +197,6 @@
     </section>
   {/if}
 
-  <div class="window-chrome">
-    <WindowControls fullscreenAware />
-  </div>
 
   <!-- The dock is the only chrome, so unlike Solarium's it never sleeps and
        never hides: there is nothing else on screen to reach for. -->
@@ -666,12 +662,6 @@
     color: var(--min-muted);
   }
 
-  .window-chrome {
-    position: absolute;
-    z-index: 7;
-    top: 26px;
-    left: 26px;
-  }
 
   .transport {
     position: absolute;

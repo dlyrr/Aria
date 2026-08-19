@@ -28,7 +28,6 @@
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import SolariumQueue from "$lib/SolariumQueue.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import WindowControls from "$lib/WindowControls.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
 
@@ -264,9 +263,6 @@
     </div>
   {/if}
 
-  <div class="window-chrome">
-    <WindowControls fullscreenAware />
-  </div>
 
   <div
     class="transport"
@@ -848,13 +844,6 @@
     background: rgba(255, 255, 255, 0.08);
   }
 
-  /* --- Chrome ---------------------------------------------------------- */
-  .window-chrome {
-    position: absolute;
-    z-index: 8;
-    top: 26px;
-    left: 26px;
-  }
 
   .transport {
     position: absolute;

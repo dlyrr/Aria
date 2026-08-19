@@ -11,6 +11,7 @@
   import SpectrumDeck from "$lib/SpectrumDeck.svelte";
   import ImmersiveChrome from "$lib/ImmersiveChrome.svelte";
   import DynamicBackground from "$lib/DynamicBackground.svelte";
+  import WindowControls from "$lib/WindowControls.svelte";
   import { theme } from "$lib/theme.svelte";
   import { immersiveStyle } from "$lib/immersiveStyle.svelte";
   import { ui } from "$lib/ui.svelte";
@@ -75,6 +76,13 @@
   {/if}
 </div>
 
+<!-- Outside the stage wrapper, because the traffic lights belong to the
+     window: inside a mode they ride the shift transform and end up floating in
+     the middle of the shrunken card rather than at the window's corner. -->
+<div class="immersive-chrome">
+  <WindowControls fullscreenAware />
+</div>
+
 <ImmersiveChrome
   appearance={ui.immersiveSidebar}
   onopen={open}
@@ -102,9 +110,19 @@
       transform 420ms var(--motion-spring),
       border-radius 420ms ease;
   }
+  .immersive-chrome {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2147483646;
+    padding: 14px 16px;
+  }
   .immersive-stage.aside {
-    /* Clears the 480px dock and leaves a margin the artwork can breathe in. */
-    transform: translateX(228px) scale(0.78);
+    /* Sized so the whole card stays on screen: at 0.78 and a fixed 228px it
+       ran off the right-hand edge, because the shift is applied after the
+       scale and the two together were wider than the window. A percentage
+       keeps the geometry right at any window size. */
+    transform: translateX(13.5%) scale(0.7);
     border-radius: 22px;
     overflow: hidden;
     box-shadow: 0 40px 120px rgba(4, 1, 7, 0.5);
