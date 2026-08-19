@@ -304,11 +304,10 @@ async fn open_miniplayer(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "mini",
-        tauri::WebviewUrl::App("index.html?view=mini".into()),
-    )
+    // A real prerendered route, not `index.html?view=mini`: the app URL is
+    // resolved as a *path* under the bundle, so a query string is looked up as
+    // part of the filename and 404s. `mini` resolves to `mini/index.html`.
+    tauri::WebviewWindowBuilder::new(&app, "mini", tauri::WebviewUrl::App("mini".into()))
     .title("Aria")
     .inner_size(340.0, 468.0)
     // Tall enough for the lyrics and queue views, short enough that the

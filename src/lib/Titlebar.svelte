@@ -39,8 +39,6 @@
   async function openMiniplayer() {
     try {
       await invoke("open_miniplayer");
-      // The point of a miniplayer is that the big one goes away.
-      await invoke("set_main_visible", { visible: false });
     } catch (e) {
       console.error("couldn't open the miniplayer:", e);
     }

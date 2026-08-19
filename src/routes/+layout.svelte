@@ -10,6 +10,8 @@
   import { theme } from "$lib/theme.svelte";
   import { lyricsStyle } from "$lib/lyricsStyle.svelte";
   import { immersiveStyle } from "$lib/immersiveStyle.svelte";
+  import { isMiniWindow } from "$lib/miniBridge.svelte";
+  import { serveMiniplayer } from "$lib/miniServer.svelte";
 
   let { children } = $props();
 
@@ -24,6 +26,12 @@
 
   onMount(() => {
     theme.load();
+    // The miniplayer is a second webview of the same bundle. It must not start
+    // a player of its own — that would be a second audio element decoding the
+    // same file — nor scan the library, nor scrobble. It mirrors the main
+    // window over events instead; see miniBridge.
+    if (isMiniWindow()) return;
+
     lyricsStyle.load();
     immersiveStyle.load();
     layout.load();
@@ -32,6 +40,7 @@
     lastfm.load();
     discord.load();
     streaming.load();
+    return serveMiniplayer();
   });
 </script>
 
