@@ -18,13 +18,11 @@
   import { onMount } from "svelte";
   import { player, formatTime } from "$lib/player.svelte";
   import { ui } from "$lib/ui.svelte";
-  import { theme } from "$lib/theme.svelte";
   import { library } from "$lib/library.svelte";
   import { glass } from "$lib/liquidGlass";
   import Artwork from "$lib/Artwork.svelte";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
 
   // Same contract as Solarium: the field is derived once in +page.svelte and
@@ -415,7 +413,10 @@
     overflow: hidden;
     overscroll-behavior: none;
     isolation: isolate;
-    background: var(--bg-deep);
+    /* Transparent, not a surface: the colour field lives one layer down in
+       Immersive.svelte and this would cover it. The floor under everything is
+       painted there. */
+    background: transparent;
     color: var(--min-text);
   }
 

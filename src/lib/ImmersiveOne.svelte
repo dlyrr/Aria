@@ -14,8 +14,6 @@
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
   import ImmersiveBrowser from "$lib/ImmersiveBrowser.svelte";
-  import DynamicBackground from "$lib/DynamicBackground.svelte";
-  import { theme } from "$lib/theme.svelte";
   import type { ArtworkPalette } from "$lib/accent";
 
   // The colour field is derived once in +page.svelte and handed down, so
@@ -379,7 +377,10 @@
     overflow: hidden;
     overscroll-behavior: none;
     isolation: isolate;
-    background: var(--bg-deep);
+    /* Transparent, not a surface: the colour field lives one layer down in
+       Immersive.svelte and this would cover it. The floor under everything is
+       painted there. */
+    background: transparent;
     color: var(--immersive-text);
   }
   .immersive.idle {

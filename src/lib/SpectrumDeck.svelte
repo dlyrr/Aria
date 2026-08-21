@@ -22,13 +22,11 @@
   import { onMount } from "svelte";
   import { player, formatTime } from "$lib/player.svelte";
   import { ui } from "$lib/ui.svelte";
-  import { theme } from "$lib/theme.svelte";
   import { library } from "$lib/library.svelte";
   import { glass } from "$lib/liquidGlass";
   import LyricsPanel from "$lib/LyricsPanel.svelte";
   import SolariumQueue from "$lib/SolariumQueue.svelte";
   import ImmersiveIcon from "$lib/icons/ImmersiveIcon.svelte";
-  import DynamicBackground from "$lib/DynamicBackground.svelte";
   import type { ArtworkPalette } from "$lib/accent";
 
   let {
@@ -498,9 +496,10 @@
     overflow: hidden;
     overscroll-behavior: none;
     isolation: isolate;
-    /* Black under everything, so the sky and ground gradients are darkening a
-       known quantity rather than whatever the app's surface happens to be. */
-    background: #05020a;
+    /* Transparent, not a surface: the colour field lives one layer down in
+       Immersive.svelte and this would cover it. The black the sky and ground
+       gradients darken is painted under the field, there. */
+    background: transparent;
     color: var(--deck-text);
   }
 

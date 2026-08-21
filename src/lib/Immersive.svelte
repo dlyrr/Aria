@@ -51,16 +51,20 @@
   field went with it and left the settings dock sitting on bare black. One
   field, behind everything, and the stage floats on it.
 -->
-{#if theme.artworkField}
-  <div class="immersive-field" aria-hidden="true">
+<!-- The layer itself is unconditional; only the field inside it is optional.
+     Every mode above is transparent so this can be seen through it, so this is
+     also the only thing painting the window — a fixed-palette skin, which has
+     no field, would otherwise leave immersive with no floor at all. -->
+<div class="immersive-field" aria-hidden="true">
+  {#if theme.artworkField}
     <DynamicBackground
       art={backdrop.art}
       palette={backdrop.palette}
       label="immersive"
       saturation={1.9}
     />
-  </div>
-{/if}
+  {/if}
+</div>
 
 <div class="immersive-stage" class:aside={ui.immersiveSidebar}>
   {#if immersiveStyle.mode === "solarium"}
@@ -96,9 +100,9 @@
     z-index: 59;
     overflow: hidden;
     pointer-events: none;
-    /* Black underneath, so the field's own gaps and the margin around a
-       shifted stage are the same colour rather than whatever the app was
-       showing before immersive opened. */
+    /* Black underneath, so the field's own gaps, the margin around a shifted
+       stage and a skin with no field at all are the same colour rather than
+       whatever the app was showing before immersive opened. */
     background: #05020a;
   }
   .immersive-stage {
